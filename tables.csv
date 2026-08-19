@@ -1,0 +1,95 @@
+
+# Olympia Downtown Nightshift Tracker — Setup Guide
+
+## What you have right now
+A fully working app with 4 modules (Outreach Calendar, Blanket Salvage, Clothing Closet, Receipts), CSV export, and charts. In this preview, data only lives in memory during your session — export CSVs before closing. The steps below turn it into a permanent, real web app.
+
+---
+
+## Option A: Fastest path — host it free, no coding required beyond copy/paste
+
+1. **Create a free GitHub account** at github.com (skip if you have one).
+2. **Create a free Vercel account** at vercel.com and sign in with GitHub.
+3. On your computer, install **Node.js** (see Option B, step 1) — needed once to build the project locally.
+4. Open Terminal (Mac) or Command Prompt/PowerShell (Windows) and run:
+   ```
+   npm create vite@latest nightshift-tracker -- --template react
+   cd nightshift-tracker
+   npm install
+   npm install recharts lucide-react
+   ```
+5. Open the project folder in any text editor (VS Code recommended, free at code.visualstudio.com).
+6. Replace the contents of `src/App.jsx` with the full code from the app artifact above.
+7. Make sure `src/main.jsx` renders `<App />` (it does by default) and that Tailwind is set up — easiest way:
+   ```
+   npm install -D tailwindcss postcss autoprefixer
+   npx tailwindcss init -p
+   ```
+   Then in `tailwind.config.js` set:
+   ```js
+   content: ["./index.html", "./src/**/*.{js,jsx}"],
+   ```
+   And add to the top of `src/index.css`:
+   ```
+   @tailwind base;
+   @tailwind components;
+   @tailwind utilities;
+   ```
+8. Test it locally: `npm run dev` → open the localhost link it prints in your browser.
+9. Push to GitHub (VS Code has a built-in "Publish to GitHub" button in the Source Control tab), then in Vercel click "Add New Project," select your repo, and click Deploy.
+10. You'll get a free public URL like `nightshift-tracker.vercel.app` that works on any Mac, Windows PC, tablet, or phone — just open it in a browser.
+11. **Install it like a real app:** On Mac (Chrome/Edge) or Windows, open the site and look for "Install App" in the browser's address bar menu — this adds a desktop icon and it opens in its own window, no browser bar, just like a native app.
+
+## Option B: Run it locally only (no internet needed after setup)
+
+**On Mac:**
+1. Install Homebrew (if not installed): open Terminal and run the install command from brew.sh.
+2. `brew install node`
+3. Follow steps 4–8 above, then just run `npm run dev` any time you want to use the app; keep the Terminal window open while using it.
+
+**On Windows:**
+1. Download Node.js LTS installer from nodejs.org and run it.
+2. Open PowerShell, follow steps 4–8 above.
+3. Run `npm run dev` each time; keep the terminal open while using the app.
+
+---
+
+## Adding permanent, multi-device data storage (recommended for real use)
+
+Right now all data is only in the browser's memory (or, if you build it yourself, you can wire up `localStorage` for single-device persistence in about 10 lines of code). For a nonprofit with multiple volunteers entering data from different computers, use a free backend:
+
+**Supabase (easiest, free tier, real Postgres database):**
+1. Create a free project at supabase.com.
+2. In the SQL editor, create tables matching the app's data (outreach, blankets, closet, receipts) with columns matching the fields used in the code.
+3. `npm install @supabase/supabase-js`
+4. Replace the `useState` arrays in `App.jsx` with calls to Supabase (`.from('outreach').select()` on load, `.insert()` when saving). This is a moderate coding step — happy to write this integration code for you if you'd like, just ask.
+
+This gives you a shared, permanent, searchable database accessible from any device, anywhere.
+
+---
+
+## Adding real receipt photo scanning (OCR)
+
+Two solid free/low-cost options:
+
+**1. Tesseract.js (free, runs in the browser, no API key needed)**
+- `npm install tesseract.js`
+- When a photo is uploaded, run it through Tesseract to extract raw text, then have the user quickly confirm/edit the store name, date, and totals it guessed. Good accuracy on clear photos, weaker on receipt fine print.
+
+**2. A dedicated receipt-reading API (higher accuracy, small per-scan cost)**
+- Services like Veryfi, Taggun, or Mindee are built specifically for receipts — they return structured JSON (store, date, line items, totals) instead of raw text.
+- Sign up, get an API key, and send the uploaded image to their endpoint; drop the returned fields straight into the form fields already built in the Receipts tab.
+
+I can write either integration for you — just let me know which you'd prefer once you're ready for that step.
+
+---
+
+## Ideas for future/creative metrics
+- **Cost per pound of laundry**: cross-reference Receipts (Laundry category spending) against Blanket Salvage pounds to get a $/lb cleaning cost.
+- **Outreach-to-closet correlation**: compare outreach days against closet visits the following days to see how outreach drives closet traffic.
+- **Volunteer hour tracking**: add a 5th module later logging volunteer hours per outreach night, so you can report cost-per-volunteer-hour or people-served-per-volunteer for grant reporting.
+- **Grant reporting export**: a "Year in Review" PDF/print view summarizing all four datasets — easy to add once the app is live.
+
+---
+
+Let me know which piece you'd like to tackle next — wiring up Supabase for permanent storage, adding real OCR, or refining anything in the app itself.

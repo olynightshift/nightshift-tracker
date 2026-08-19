@@ -1,7 +1,28 @@
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { Calendar, Package, Shirt, Receipt as ReceiptIcon, Download, Plus, Trash2, Search, Home, Camera, ChevronLeft, ChevronRight, Gift, X } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+// Actual Supabase schema:
+//   outreach_calendar(date, nightshift, coffee)
+//   blanket_salvage(date, blankets, coats, pounds)
+//   clothing_closet(date, people_served)
+//   receipts(id, date, store, image_url)             id is int8 auto-increment
+//   receipt_items(id, receipt_id, item_name, category, cost)
+//   donations(date, item_type, quantity)             long format
+const TABLES = {
+  outreach: 'outreach_calendar',
+  blankets: 'blanket_salvage',
+  closet: 'clothing_closet',
+  receipts: 'receipts',
+  receiptItems: 'receipt_items',
+  donations: 'donations',
+};
 
 const pad = n => String(n).padStart(2, '0');
 const toISO = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -13,8 +34,10 @@ const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const todayISO = toISO(new Date());
 const PIE_COLORS = ['#3b82f6','#f59e0b','#8b5cf6','#14b8a6','#22c55e','#ec4899','#ef4444','#6366f1','#84cc16','#06b6d4'];
 
-let idCounter = 1;
-const nextId = () => idCounter++;
+const nextId = () =>
+  typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 function downloadCSV(filename, rows) {
   if (!rows || rows.length === 0) { alert('No data to export yet.'); return; }
@@ -144,6 +167,195 @@ function sumDonationsAllTime(entries, itemTypes) {
   return totals;
 }
 
+// --- Supabase collection configs ---
+const collections = {
+  outreach: {
+    async load() {
+      const { data, error } = await supabase.from(TABLES.outreach).select('date, nightshift, coffee');
+      if (error) throw error;
+      return data || [];
+    },
+    prepareLoaded(raw) {
+      return raw.map(r => ({ id: r.date, date: r.date, nightshift: !!r.nightshift, coffee: !!r.coffee }));
+    },
+    async toDB(rows) {
+      const { error: delErr } = await supabase.from(TABLES.outreach).delete().not('date', 'is', null);
+      if (delErr) throw delErr;
+      if (rows.length === 0) return;
+      const { error } = await supabase.from(TABLES.outreach).insert(
+        rows.map(r => ({ date: r.date, nightshift: !!r.nightshift, coffee: !!r.coffee }))
+      );
+      if (error) throw error;
+    },
+  },
+  blankets: {
+    async load() {
+      const { data, error } = await supabase.from(TABLES.blankets).select('date, blankets, coats, pounds');
+      if (error) throw error;
+      return data || [];
+    },
+    prepareLoaded(raw) {
+      return raw.map((r, i) => ({
+        id: `${r.date}-${i}`,
+        date: r.date,
+        blankets: Number(r.blankets) || 0,
+        coats: Number(r.coats) || 0,
+        pounds: Number(r.pounds) || 0,
+      }));
+    },
+    async toDB(rows) {
+      const { error: delErr } = await supabase.from(TABLES.blankets).delete().not('date', 'is', null);
+      if (delErr) throw delErr;
+      if (rows.length === 0) return;
+      const { error } = await supabase.from(TABLES.blankets).insert(
+        rows.map(r => ({ date: r.date, blankets: Number(r.blankets) || 0, coats: Number(r.coats) || 0, pounds: Number(r.pounds) || 0 }))
+      );
+      if (error) throw error;
+    },
+  },
+  closet: {
+    async load() {
+      const { data, error } = await supabase.from(TABLES.closet).select('date, people_served');
+      if (error) throw error;
+      return data || [];
+    },
+    prepareLoaded(raw) {
+      return raw.map((r, i) => ({ id: `${r.date}-${i}`, date: r.date, people: Number(r.people_served) || 0 }));
+    },
+    async toDB(rows) {
+      const { error: delErr } = await supabase.from(TABLES.closet).delete().not('date', 'is', null);
+      if (delErr) throw delErr;
+      if (rows.length === 0) return;
+      const { error } = await supabase.from(TABLES.closet).insert(
+        rows.map(r => ({ date: r.date, people_served: Number(r.people) || 0 }))
+      );
+      if (error) throw error;
+    },
+  },
+  donations: {
+    async load() {
+      const { data, error } = await supabase.from(TABLES.donations).select('date, item_type, quantity');
+      if (error) throw error;
+      return data || [];
+    },
+    prepareLoaded(raw) {
+      const map = {};
+      raw.forEach(r => {
+        if (!r.date || !r.item_type) return;
+        if (!map[r.date]) map[r.date] = { id: r.date, date: r.date, quantities: {} };
+        map[r.date].quantities[r.item_type] = (map[r.date].quantities[r.item_type] || 0) + (Number(r.quantity) || 0);
+      });
+      return Object.values(map);
+    },
+    async toDB(rows) {
+      const { error: delErr } = await supabase.from(TABLES.donations).delete().not('date', 'is', null);
+      if (delErr) throw delErr;
+      const payload = [];
+      rows.forEach(e => {
+        Object.entries(e.quantities || {}).forEach(([itemType, qty]) => {
+          if (Number(qty) > 0) payload.push({ date: e.date, item_type: itemType, quantity: Number(qty) });
+        });
+      });
+      if (payload.length === 0) return;
+      const { error } = await supabase.from(TABLES.donations).insert(payload);
+      if (error) throw error;
+    },
+  },
+  receipts: {
+    async load() {
+      const [receiptsRes, itemsRes] = await Promise.all([
+        supabase.from(TABLES.receipts).select('id, date, store, image_url'),
+        supabase.from(TABLES.receiptItems).select('id, receipt_id, item_name, category, cost'),
+      ]);
+      if (receiptsRes.error) throw receiptsRes.error;
+      if (itemsRes.error) throw itemsRes.error;
+      const itemsByReceipt = {};
+      (itemsRes.data || []).forEach(it => {
+        if (!itemsByReceipt[it.receipt_id]) itemsByReceipt[it.receipt_id] = [];
+        itemsByReceipt[it.receipt_id].push({ id: it.id, name: it.item_name, category: it.category, cost: Number(it.cost) || 0 });
+      });
+      Object.values(itemsByReceipt).forEach(list => list.sort((a, b) => a.id - b.id));
+      return (receiptsRes.data || []).map(r => ({
+        id: r.id,
+        date: r.date,
+        store: r.store,
+        image: r.image_url || null,
+        items: itemsByReceipt[r.id] || [],
+      }));
+    },
+    async toDB(rows) {
+      const { error: delItemsErr } = await supabase.from(TABLES.receiptItems).delete().not('id', 'is', null);
+      if (delItemsErr) throw delItemsErr;
+      const { error: delReceiptsErr } = await supabase.from(TABLES.receipts).delete().not('id', 'is', null);
+      if (delReceiptsErr) throw delReceiptsErr;
+      if (rows.length === 0) return;
+      const { data: inserted, error: insErr } = await supabase
+        .from(TABLES.receipts)
+        .insert(rows.map(r => ({ date: r.date, store: r.store, image_url: r.image || null })))
+        .select('id');
+      if (insErr) throw insErr;
+      const itemPayload = [];
+      (inserted || []).forEach((rec, i) => {
+        (rows[i].items || []).forEach(it => {
+          itemPayload.push({
+            receipt_id: rec.id,
+            item_name: it.name,
+            category: it.category || 'Other',
+            cost: Number(it.cost) || 0,
+          });
+        });
+      });
+      if (itemPayload.length === 0) return;
+      const { error: insItemsErr } = await supabase.from(TABLES.receiptItems).insert(itemPayload);
+      if (insItemsErr) throw insItemsErr;
+    },
+  },
+};
+
+// --- Generic Supabase collection hook ---
+function useSupabaseCollection(config) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const rowsRef = useRef([]);
+  const initialized = useRef(false);
+  const queue = useRef(Promise.resolve());
+  const configRef = useRef(config);
+  configRef.current = config;
+
+  useEffect(() => {
+    let active = true;
+    if (!supabase) { setLoading(false); return; }
+    (async () => {
+      try {
+        const raw = await configRef.current.load();
+        const prepared = configRef.current.prepareLoaded ? configRef.current.prepareLoaded(raw) : raw;
+        if (active) {
+          rowsRef.current = prepared;
+          setRows(prepared);
+        }
+      } catch (err) {
+        console.error('Supabase load error:', err.message || err);
+      } finally {
+        if (active) setLoading(false);
+        initialized.current = true;
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const setAndSync = useCallback((updater) => {
+    const next = typeof updater === 'function' ? updater(rowsRef.current) : updater;
+    rowsRef.current = next;
+    setRows(next);
+    if (!supabase || !initialized.current) return;
+    queue.current = queue.current
+      .then(() => configRef.current.toDB(rowsRef.current))
+      .catch(err => console.error('Supabase sync error:', err.message || err));
+  }, []);
+
+  return [rows, setAndSync, loading];
+}
+
 function Dashboard({ outreach = [], blankets = [], closet = [], receipts = [], donations = [], donationItemTypes = [] }) {
   const totalNightshift = outreach.filter(e => e.nightshift).length;
   const totalCoffee = outreach.filter(e => e.coffee).length;
@@ -185,7 +397,7 @@ function Dashboard({ outreach = [], blankets = [], closet = [], receipts = [], d
         <p><strong>Insight:</strong> Average people served per closet day: {closet.length ? (totalPeople / closet.length).toFixed(1) : '—'}.</p>
         <p><strong>Insight:</strong> Of {outreach.length} logged outreach day(s), {outreach.length ? Math.round(totalNightshift / outreach.length * 100) : 0}% included nightshift outreach and {outreach.length ? Math.round(totalCoffee / outreach.length * 100) : 0}% included mission coffee.</p>
         {topType && topType[1] > 0 && <p><strong>Insight:</strong> Most-donated item type so far: <strong>{topType[0]}</strong> ({topType[1]} total).</p>}
-        <p className="text-xs text-gray-400 pt-2 border-t">Data is stored only in this browser session. Export CSV on each tab regularly to keep permanent records, or deploy this app with a real database (see setup guide).</p>
+        <p className="text-xs text-gray-400 pt-2 border-t">Data is synced to Supabase automatically as you enter it. Use the Export CSV buttons on each tab for backups or offline analysis.</p>
       </div>
     </div>
   );
@@ -214,7 +426,7 @@ function OutreachTab({ entries = [], setEntries = () => {} }) {
       const existing = prev.find(e => e.date === formDate);
       if (existing) return prev.map(e => e.date === formDate ? { ...e, nightshift: formNightshift, coffee: formCoffee } : e);
       if (!formNightshift && !formCoffee) return prev;
-      return [...prev, { id: nextId(), date: formDate, nightshift: formNightshift, coffee: formCoffee }];
+      return [...prev, { id: formDate, date: formDate, nightshift: formNightshift, coffee: formCoffee }];
     });
   }
   function deleteEntry(date) { setEntries(prev => prev.filter(e => e.date !== date)); }
@@ -1047,7 +1259,7 @@ function ReceiptsTab({ receipts = [], setReceipts = () => {} }) {
           {image && <img src={image} alt="receipt" className="h-16 rounded border" />}
         </div>
         <p className="text-xs text-gray-500 mb-3">
-          This preview doesn't auto-scan receipts — attach the photo for your records, then type the store, items, and costs below. (See the setup guide to add real auto-scan/OCR when you deploy this app.)
+          This doesn't auto-scan receipts — attach the photo for your records, then type the store, items, and costs below. The photo is stored as a data URL in the `image_url` column.
         </p>
         <div className="flex flex-col gap-2 mb-3">
           {items.map((it, i) => (
@@ -1178,12 +1390,27 @@ function ReceiptsTab({ receipts = [], setReceipts = () => {} }) {
 
 export default function OlympiaNightshiftTracker() {
   const [tab, setTab] = useState('dashboard');
-  const [outreach, setOutreach] = useState([]);
-  const [blankets, setBlankets] = useState([]);
-  const [closet, setCloset] = useState([]);
-  const [receipts, setReceipts] = useState([]);
-  const [donations, setDonations] = useState([]);
+  const [outreach, setOutreach, loadingOutreach] = useSupabaseCollection(collections.outreach);
+  const [blankets, setBlankets, loadingBlankets] = useSupabaseCollection(collections.blankets);
+  const [closet, setCloset, loadingCloset] = useSupabaseCollection(collections.closet);
+  const [receipts, setReceipts, loadingReceipts] = useSupabaseCollection(collections.receipts);
+  const [donations, setDonations, loadingDonations] = useSupabaseCollection(collections.donations);
   const [donationItemTypes, setDonationItemTypes] = useState(['Blankets', 'Coats/Hoodies']);
+
+  useEffect(() => {
+    if (loadingDonations || donations.length === 0) return;
+    setDonationItemTypes(prev => {
+      const merged = [...prev];
+      donations.forEach(e => {
+        Object.keys(e.quantities || {}).forEach(t => {
+          if (!merged.includes(t)) merged.push(t);
+        });
+      });
+      return merged;
+    });
+  }, [loadingDonations, donations]);
+
+  const loading = loadingOutreach || loadingBlankets || loadingCloset || loadingReceipts || loadingDonations;
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -1195,32 +1422,44 @@ export default function OlympiaNightshiftTracker() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="bg-blue-900 text-white p-4">
-        <h1 className="text-xl font-bold">Olympia Downtown Nightshift — Data Tracker</h1>
-        <p className="text-blue-200 text-sm">Outreach • Blanket Salvage • Donations • Clothing Closet • Receipts</p>
+    <>
+      {!supabase && (
+        <div className="bg-red-50 border-b border-red-200 text-red-700 text-sm p-3 text-center">
+          Supabase isn't configured. Add <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> to your <code>.env</code> file, then restart the dev server.
+        </div>
+      )}
+      {loading && (
+        <div className="bg-yellow-50 border-b border-yellow-200 text-yellow-700 text-sm p-3 text-center">
+          Loading data from Supabase…
+        </div>
+      )}
+      <div className="min-h-screen bg-gray-100">
+        <div className="bg-blue-900 text-white p-4">
+          <h1 className="text-xl font-bold">Olympia Downtown Nightshift — Data Tracker</h1>
+          <p className="text-blue-200 text-sm">Outreach • Blanket Salvage • Donations • Clothing Closet • Receipts</p>
+        </div>
+        <div className="flex flex-wrap gap-2 p-3 bg-white border-b sticky top-0 z-10">
+          {tabs.map(t => {
+            const Icon = t.icon;
+            return (
+              <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium ${tab === t.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                <Icon size={16} /> {t.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="p-4 max-w-6xl mx-auto">
+          {tab === 'dashboard' && <Dashboard outreach={outreach} blankets={blankets} closet={closet} receipts={receipts} donations={donations} donationItemTypes={donationItemTypes} />}
+          {tab === 'outreach' && <OutreachTab entries={outreach} setEntries={setOutreach} />}
+          {tab === 'blankets' && <BlanketTab entries={blankets} setEntries={setBlankets} />}
+          {tab === 'donations' && <DonationTab entries={donations} setEntries={setDonations} itemTypes={donationItemTypes} setItemTypes={setDonationItemTypes} />}
+          {tab === 'closet' && <ClosetTab entries={closet} setEntries={setCloset} />}
+          {tab === 'receipts' && <ReceiptsTab receipts={receipts} setReceipts={setReceipts} />}
+        </div>
+        <div className="text-center text-xs text-gray-400 p-4">
+          Data is synced to Supabase automatically as you enter it.
+        </div>
       </div>
-      <div className="flex flex-wrap gap-2 p-3 bg-white border-b sticky top-0 z-10">
-        {tabs.map(t => {
-          const Icon = t.icon;
-          return (
-            <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium ${tab === t.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
-              <Icon size={16} /> {t.label}
-            </button>
-          );
-        })}
-      </div>
-      <div className="p-4 max-w-6xl mx-auto">
-        {tab === 'dashboard' && <Dashboard outreach={outreach} blankets={blankets} closet={closet} receipts={receipts} donations={donations} donationItemTypes={donationItemTypes} />}
-        {tab === 'outreach' && <OutreachTab entries={outreach} setEntries={setOutreach} />}
-        {tab === 'blankets' && <BlanketTab entries={blankets} setEntries={setBlankets} />}
-        {tab === 'donations' && <DonationTab entries={donations} setEntries={setDonations} itemTypes={donationItemTypes} setItemTypes={setDonationItemTypes} />}
-        {tab === 'closet' && <ClosetTab entries={closet} setEntries={setCloset} />}
-        {tab === 'receipts' && <ReceiptsTab receipts={receipts} setReceipts={setReceipts} />}
-      </div>
-      <div className="text-center text-xs text-gray-400 p-4">
-        Data is stored in this browser session only. Export CSV regularly to keep permanent records.
-      </div>
-    </div>
+    </>
   );
 }

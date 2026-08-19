@@ -1259,7 +1259,7 @@ function ReceiptsTab({ receipts = [], setReceipts = () => {} }) {
           {image && <img src={image} alt="receipt" className="h-16 rounded border" />}
         </div>
         <p className="text-xs text-gray-500 mb-3">
-          This doesn't auto-scan receipts — attach the photo for your records, then type the store, items, and costs below. The photo is stored as a data URL in the `image_url` column.
+          This doesn't auto-scan receipts — attach the photo for your records, then type the store, items, and costs below. The photo is stored directly in the `image_url` column as a text value.
         </p>
         <div className="flex flex-col gap-2 mb-3">
           {items.map((it, i) => (

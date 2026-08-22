@@ -19,10 +19,11 @@ const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, 
 const TABLES = {
   outreach: 'outreach_calendar',
   blankets: 'blanket_salvage',
+  donations: 'donations',
   closet: 'clothing_closet',
   receipts: 'receipts',
   receiptItems: 'receipt_items',
-  donations: 'donations',
+
 };
 
 const pad = n => String(n).padStart(2, '0');

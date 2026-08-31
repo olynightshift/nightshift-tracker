@@ -1,7 +1,7 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Calendar, Package, Shirt, Receipt as ReceiptIcon, Download, Plus, Trash2, Search, Home, Camera, ChevronLeft, ChevronRight, Gift, X, Users, Mail, Phone, MapPin, Edit2 } from 'lucide-react';
+import { Calendar, Package, Shirt, Receipt as ReceiptIcon, Download, Plus, Trash2, Search, Home, Camera, ChevronLeft, ChevronRight, Gift, X } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://hipcqkzppkmqzpjjkyyw.supabase.co";
@@ -16,7 +16,6 @@ const TABLES = {
   closet: 'clothing_closet',
   receipts: 'receipts',
   receiptItems: 'receipt_items',
-  donors: 'donors',
 };
 
 const pad = n => String(n).padStart(2, '0');
@@ -28,6 +27,11 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const todayISO = toISO(new Date());
 const PIE_COLORS = ['#3b82f6','#f59e0b','#8b5cf6','#14b8a6','#22c55e','#ec4899','#ef4444','#6366f1','#84cc16','#06b6d4'];
+
+const nextId = () =>
+  typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 function downloadCSV(filename, rows) {
   if (!rows || rows.length === 0) { alert('No data to export yet.'); return; }
@@ -48,7 +52,7 @@ function downloadCSV(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
-// ---------- aggregate helpers ----------
+// ---------- helpers (same as before) ----------
 function groupOutreachByMonth(entries, year) {
   const data = MONTHS.map(m => ({ month: m, nightshift: 0, coffee: 0 }));
   entries.forEach(e => {
@@ -156,7 +160,10 @@ function sumDonationsAllTime(entries, itemTypes) {
   return totals;
 }
 
-// ---------------- Supabase API ----------------
+// ---------------- NEW: per-collection APIs (upsert / delete individual rows) ----------------
+// Each collection exposes: load(), addOne(row), updateOne(row), removeOne(row)
+// This means adding an item only INSERTS that item — no more nuke-and-repave.
+
 const api = {
   outreach: {
     async load() {
@@ -165,8 +172,6 @@ const api = {
       return (data || []).map(r => ({ id: r.date, date: r.date, nightshift: !!r.nightshift, coffee: !!r.coffee }));
     },
     async upsert(row) {
-      // Requires UNIQUE constraint on date column. If you don't have one, run:
-      //   ALTER TABLE outreach_calendar ADD CONSTRAINT outreach_calendar_date_unique UNIQUE (date);
       const { error } = await supabase.from(TABLES.outreach).upsert(
         { date: row.date, nightshift: !!row.nightshift, coffee: !!row.coffee },
         { onConflict: 'date' }
@@ -182,11 +187,20 @@ const api = {
     async load() {
       const { data, error } = await supabase.from(TABLES.blankets).select('id, date, blankets, coats, pounds');
       if (error) throw error;
-      return (data || []).map(r => ({ id: r.id, date: r.date, blankets: Number(r.blankets) || 0, coats: Number(r.coats) || 0, pounds: Number(r.pounds) || 0 }));
+      return (data || []).map(r => ({
+        id: r.id,
+        date: r.date,
+        blankets: Number(r.blankets) || 0,
+        coats: Number(r.coats) || 0,
+        pounds: Number(r.pounds) || 0,
+      }));
     },
     async insert(row) {
       const { data, error } = await supabase.from(TABLES.blankets).insert({
-        date: row.date, blankets: Number(row.blankets) || 0, coats: Number(row.coats) || 0, pounds: Number(row.pounds) || 0,
+        date: row.date,
+        blankets: Number(row.blankets) || 0,
+        coats: Number(row.coats) || 0,
+        pounds: Number(row.pounds) || 0,
       }).select('id').single();
       if (error) throw error;
       return data.id;
@@ -203,7 +217,10 @@ const api = {
       return (data || []).map(r => ({ id: r.id, date: r.date, people: Number(r.people_served) || 0 }));
     },
     async insert(row) {
-      const { data, error } = await supabase.from(TABLES.closet).insert({ date: row.date, people_served: Number(row.people) || 0 }).select('id').single();
+      const { data, error } = await supabase.from(TABLES.closet).insert({
+        date: row.date,
+        people_served: Number(row.people) || 0,
+      }).select('id').single();
       if (error) throw error;
       return data.id;
     },
@@ -213,41 +230,31 @@ const api = {
     },
   },
   donations: {
-    // One entry per (date, donor_id). Each entry can have multiple item types.
+    // Each entry (one date) may cover multiple item_types. We store one row per (date, item_type).
     async load() {
-      const { data, error } = await supabase.from(TABLES.donations).select('date, item_type, quantity, donor_id');
+      const { data, error } = await supabase.from(TABLES.donations).select('date, item_type, quantity');
       if (error) throw error;
       const map = {};
       (data || []).forEach(r => {
         if (!r.date || !r.item_type) return;
-        const key = `${r.date}|${r.donor_id ?? 'null'}`;
-        if (!map[key]) map[key] = { id: key, date: r.date, donor_id: r.donor_id ?? null, quantities: {} };
-        map[key].quantities[r.item_type] = (map[key].quantities[r.item_type] || 0) + (Number(r.quantity) || 0);
+        if (!map[r.date]) map[r.date] = { id: r.date, date: r.date, quantities: {} };
+        map[r.date].quantities[r.item_type] = (map[r.date].quantities[r.item_type] || 0) + (Number(r.quantity) || 0);
       });
       return Object.values(map);
     },
-    async upsertEntry(row) {
-      // Delete existing rows for this (date, donor_id) combo, then insert fresh
-      let del = supabase.from(TABLES.donations).delete().eq('date', row.date);
-      del = row.donor_id == null ? del.is('donor_id', null) : del.eq('donor_id', row.donor_id);
-      const { error: delErr } = await del;
+    async upsertDate(row) {
+      // Replace all rows for this date atomically-ish
+      const { error: delErr } = await supabase.from(TABLES.donations).delete().eq('date', row.date);
       if (delErr) throw delErr;
       const payload = Object.entries(row.quantities || {})
         .filter(([, q]) => Number(q) > 0)
-        .map(([item_type, quantity]) => ({
-          date: row.date,
-          item_type,
-          quantity: Number(quantity),
-          donor_id: row.donor_id ?? null,
-        }));
+        .map(([item_type, quantity]) => ({ date: row.date, item_type, quantity: Number(quantity) }));
       if (payload.length === 0) return;
       const { error } = await supabase.from(TABLES.donations).insert(payload);
       if (error) throw error;
     },
-    async removeEntry(row) {
-      let del = supabase.from(TABLES.donations).delete().eq('date', row.date);
-      del = row.donor_id == null ? del.is('donor_id', null) : del.eq('donor_id', row.donor_id);
-      const { error } = await del;
+    async removeDate(row) {
+      const { error } = await supabase.from(TABLES.donations).delete().eq('date', row.date);
       if (error) throw error;
     },
   },
@@ -265,12 +272,25 @@ const api = {
         itemsByReceipt[it.receipt_id].push({ id: it.id, name: it.item_name, category: it.category, cost: Number(it.cost) || 0 });
       });
       Object.values(itemsByReceipt).forEach(list => list.sort((a, b) => a.id - b.id));
-      return (receiptsRes.data || []).map(r => ({ id: r.id, date: r.date, store: r.store, image: r.image_url || null, items: itemsByReceipt[r.id] || [] }));
+      return (receiptsRes.data || []).map(r => ({
+        id: r.id,
+        date: r.date,
+        store: r.store,
+        image: r.image_url || null,
+        items: itemsByReceipt[r.id] || [],
+      }));
     },
     async insert(row) {
-      const { data: rec, error } = await supabase.from(TABLES.receipts).insert({ date: row.date, store: row.store, image_url: row.image || null }).select('id').single();
+      const { data: rec, error } = await supabase.from(TABLES.receipts).insert({
+        date: row.date, store: row.store, image_url: row.image || null,
+      }).select('id').single();
       if (error) throw error;
-      const items = (row.items || []).map(it => ({ receipt_id: rec.id, item_name: it.name, category: it.category || 'Other', cost: Number(it.cost) || 0 }));
+      const items = (row.items || []).map(it => ({
+        receipt_id: rec.id,
+        item_name: it.name,
+        category: it.category || 'Other',
+        cost: Number(it.cost) || 0,
+      }));
       if (items.length > 0) {
         const { error: itemErr } = await supabase.from(TABLES.receiptItems).insert(items);
         if (itemErr) throw itemErr;
@@ -278,37 +298,9 @@ const api = {
       return rec.id;
     },
     async remove(row) {
+      // receipt_items should ON DELETE CASCADE; if not, delete them first:
       await supabase.from(TABLES.receiptItems).delete().eq('receipt_id', row.id);
       const { error } = await supabase.from(TABLES.receipts).delete().eq('id', row.id);
-      if (error) throw error;
-    },
-  },
-  donors: {
-    async load() {
-      const { data, error } = await supabase.from(TABLES.donors).select('id, name, organization, email, phone, address, notes').order('name');
-      if (error) throw error;
-      return (data || []).map(r => ({
-        id: r.id, name: r.name || '', organization: r.organization || '', email: r.email || '',
-        phone: r.phone || '', address: r.address || '', notes: r.notes || '',
-      }));
-    },
-    async insert(row) {
-      const { data, error } = await supabase.from(TABLES.donors).insert({
-        name: row.name, organization: row.organization || null, email: row.email || null,
-        phone: row.phone || null, address: row.address || null, notes: row.notes || null,
-      }).select('id').single();
-      if (error) throw error;
-      return data.id;
-    },
-    async update(row) {
-      const { error } = await supabase.from(TABLES.donors).update({
-        name: row.name, organization: row.organization || null, email: row.email || null,
-        phone: row.phone || null, address: row.address || null, notes: row.notes || null,
-      }).eq('id', row.id);
-      if (error) throw error;
-    },
-    async remove(row) {
-      const { error } = await supabase.from(TABLES.donors).delete().eq('id', row.id);
       if (error) throw error;
     },
   },
@@ -327,7 +319,7 @@ function useCollection(loader) {
         if (active) setRows(data);
       } catch (err) {
         console.error('Load error:', err.message || err);
-        alert('Load failed: ' + (err.message || err));
+        alert('Failed to load data from Supabase: ' + (err.message || err) + '\n\nCheck RLS policies on your tables.');
       } finally {
         if (active) setLoading(false);
       }
@@ -339,169 +331,10 @@ function useCollection(loader) {
 }
 
 // ============================================================
-// Donor Contact Form Modal
+// Dashboard, Tabs — same UI, but write handlers call api.* directly
 // ============================================================
-function DonorFormModal({ donor, onClose, onSaved }) {
-  const [name, setName] = useState(donor?.name || '');
-  const [organization, setOrganization] = useState(donor?.organization || '');
-  const [email, setEmail] = useState(donor?.email || '');
-  const [phone, setPhone] = useState(donor?.phone || '');
-  const [address, setAddress] = useState(donor?.address || '');
-  const [notes, setNotes] = useState(donor?.notes || '');
-  const [saving, setSaving] = useState(false);
-  const isEdit = !!donor?.id;
 
-  async function handleSave() {
-    if (!name.trim()) { alert('Donor name is required.'); return; }
-    setSaving(true);
-    try {
-      const row = { id: donor?.id, name: name.trim(), organization, email, phone, address, notes };
-      if (isEdit) {
-        await api.donors.update(row);
-        onSaved(row);
-      } else {
-        const id = await api.donors.insert(row);
-        onSaved({ ...row, id });
-      }
-      onClose();
-    } catch (err) {
-      alert('Save failed: ' + err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-lg max-w-lg w-full max-h-full overflow-y-auto">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold flex items-center gap-2"><Users size={20} /> {isEdit ? 'Edit Donor' : 'Add New Donor'}</h2>
-          <button onClick={onClose}><X size={20} /></button>
-        </div>
-        <div className="p-4 flex flex-col gap-3">
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Name <span className="text-red-500">*</span></label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full name" className="border rounded px-2 py-1 w-full" autoFocus />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Organization</label>
-            <input type="text" value={organization} onChange={e => setOrganization(e.target.value)} placeholder="Company / church / group (optional)" className="border rounded px-2 py-1 w-full" />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1 flex items-center gap-1"><Mail size={14} /> Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="border rounded px-2 py-1 w-full" />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1 flex items-center gap-1"><Phone size={14} /> Phone</label>
-            <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="border rounded px-2 py-1 w-full" />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1 flex items-center gap-1"><MapPin size={14} /> Address</label>
-            <textarea value={address} onChange={e => setAddress(e.target.value)} rows={2} className="border rounded px-2 py-1 w-full" />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Notes</label>
-            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="border rounded px-2 py-1 w-full" placeholder="e.g. prefers pickup, tax receipt required, etc." />
-          </div>
-        </div>
-        <div className="flex justify-end gap-2 p-4 border-t bg-gray-50">
-          <button onClick={onClose} className="px-4 py-1.5 rounded border bg-white">Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="px-4 py-1.5 rounded bg-emerald-600 text-white disabled:opacity-50">
-            {saving ? 'Saving…' : 'Save Contact'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// Contacts Tab
-// ============================================================
-function ContactsTab({ donors, setDonors }) {
-  const [search, setSearch] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editingDonor, setEditingDonor] = useState(null);
-
-  function openAdd() { setEditingDonor(null); setShowModal(true); }
-  function openEdit(d) { setEditingDonor(d); setShowModal(true); }
-  function handleSaved(row) {
-    setDonors(prev => {
-      const idx = prev.findIndex(d => d.id === row.id);
-      if (idx >= 0) { const copy = [...prev]; copy[idx] = row; return copy.sort((a, b) => a.name.localeCompare(b.name)); }
-      return [...prev, row].sort((a, b) => a.name.localeCompare(b.name));
-    });
-  }
-  async function handleDelete(d) {
-    if (!window.confirm(`Delete donor "${d.name}"? Any donations linked to them will lose the donor connection.`)) return;
-    try {
-      await api.donors.remove(d);
-      setDonors(prev => prev.filter(x => x.id !== d.id));
-    } catch (err) { alert('Delete failed: ' + err.message); }
-  }
-  function exportCSV() {
-    downloadCSV('donors.csv', donors.map(d => ({
-      Name: d.name, Organization: d.organization, Email: d.email, Phone: d.phone, Address: d.address, Notes: d.notes,
-    })));
-  }
-
-  const filtered = donors.filter(d => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return d.name.toLowerCase().includes(s) || d.organization.toLowerCase().includes(s) || d.email.toLowerCase().includes(s);
-  });
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 className="text-lg font-semibold flex items-center gap-2"><Users size={20} /> Donor Contacts</h2>
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search size={14} className="absolute left-2 top-2.5 text-gray-400" />
-              <input type="text" placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)} className="border rounded pl-7 pr-2 py-1 text-sm" />
-            </div>
-            <button onClick={openAdd} className="bg-emerald-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-1"><Plus size={14} />Add Donor</button>
-            <button onClick={exportCSV} className="bg-gray-100 px-3 py-1.5 rounded flex items-center gap-1 text-sm"><Download size={16} />Export</button>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr className="text-left border-b">
-              <th className="p-2">Name</th><th>Organization</th><th>Email</th><th>Phone</th><th>Address</th><th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(d => (
-              <tr key={d.id} className="border-b hover:bg-gray-50">
-                <td className="p-2 font-medium">{d.name}</td>
-                <td>{d.organization || '—'}</td>
-                <td>{d.email || '—'}</td>
-                <td>{d.phone || '—'}</td>
-                <td className="max-w-xs truncate">{d.address || '—'}</td>
-                <td className="flex gap-2 p-2">
-                  <button onClick={() => openEdit(d)} title="Edit"><Edit2 size={14} className="text-blue-500" /></button>
-                  <button onClick={() => handleDelete(d)} title="Delete"><Trash2 size={14} className="text-red-500" /></button>
-                </td>
-              </tr>
-            ))}
-            {filtered.length === 0 && <tr><td colSpan="6" className="text-center text-gray-400 py-6">No donors yet — click "Add Donor" to get started.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-
-      {showModal && <DonorFormModal donor={editingDonor} onClose={() => setShowModal(false)} onSaved={handleSaved} />}
-    </div>
-  );
-}
-
-// ============================================================
-// Dashboard
-// ============================================================
-function Dashboard({ outreach, blankets, closet, receipts, donations, donationItemTypes, donors }) {
+function Dashboard({ outreach, blankets, closet, receipts, donations, donationItemTypes }) {
   const totalNightshift = outreach.filter(e => e.nightshift).length;
   const totalCoffee = outreach.filter(e => e.coffee).length;
   const totalBlankets = blankets.reduce((s, e) => s + e.blankets, 0);
@@ -512,21 +345,22 @@ function Dashboard({ outreach, blankets, closet, receipts, donations, donationIt
   const totalDonatedItems = donations.reduce((s, e) => s + Object.values(e.quantities).reduce((ss, v) => ss + (Number(v) || 0), 0), 0);
 
   const stats = [
-    { label: 'Nightshift Days', value: totalNightshift, color: 'bg-blue-500' },
-    { label: 'Coffee Days', value: totalCoffee, color: 'bg-amber-500' },
+    { label: 'Nightshift Outreach Days', value: totalNightshift, color: 'bg-blue-500' },
+    { label: 'Mission Coffee Days', value: totalCoffee, color: 'bg-amber-500' },
     { label: 'Blankets Salvaged', value: totalBlankets, color: 'bg-purple-500' },
-    { label: 'Coats/Hoodies', value: totalCoats, color: 'bg-teal-500' },
-    { label: 'Pounds Textiles', value: totalPounds.toFixed(1), color: 'bg-green-500' },
-    { label: 'People Served', value: totalPeople, color: 'bg-pink-500' },
-    { label: 'Items Donated', value: totalDonatedItems, color: 'bg-emerald-500' },
-    { label: 'Donors', value: donors.length, color: 'bg-cyan-500' },
-    { label: 'Receipts', value: receipts.length, color: 'bg-indigo-500' },
+    { label: 'Coats/Hoodies Salvaged', value: totalCoats, color: 'bg-teal-500' },
+    { label: 'Pounds of Textiles', value: totalPounds.toFixed(1), color: 'bg-green-500' },
+    { label: 'People Served (Closet)', value: totalPeople, color: 'bg-pink-500' },
+    { label: 'Items Donated (All Types)', value: totalDonatedItems, color: 'bg-emerald-500' },
+    { label: 'Receipts Logged', value: receipts.length, color: 'bg-indigo-500' },
     { label: 'Total Spent', value: '$' + totalSpent.toFixed(2), color: 'bg-red-500' },
   ];
+  const donationTotals = sumDonationsAllTime(donations, donationItemTypes);
+  const topType = Object.entries(donationTotals).sort((a, b) => b[1] - a[1])[0];
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {stats.map(s => (
           <div key={s.label} className="bg-white rounded-lg shadow p-3">
             <div className={`w-2 h-2 rounded-full ${s.color} mb-2`} />
@@ -535,8 +369,11 @@ function Dashboard({ outreach, blankets, closet, receipts, donations, donationIt
           </div>
         ))}
       </div>
-      <div className="bg-white rounded-lg shadow p-4 text-sm text-gray-600">
-        Data syncs to Supabase automatically. Use Export CSV on each tab for backups.
+      <div className="bg-white rounded-lg shadow p-4 text-sm text-gray-600 flex flex-col gap-2">
+        <p><strong>Insight:</strong> Average pounds per blanket: {totalBlankets > 0 ? (totalPounds / totalBlankets).toFixed(2) : '—'} lbs/blanket.</p>
+        <p><strong>Insight:</strong> Average people served per closet day: {closet.length ? (totalPeople / closet.length).toFixed(1) : '—'}.</p>
+        {topType && topType[1] > 0 && <p><strong>Insight:</strong> Most-donated item type: <strong>{topType[0]}</strong> ({topType[1]} total).</p>}
+        <p className="text-xs text-gray-400 pt-2 border-t">Data syncs to Supabase on each change. Use Export CSV for backups.</p>
       </div>
     </div>
   );
@@ -564,9 +401,10 @@ function OutreachTab({ entries, setEntries }) {
   async function saveEntry() {
     const row = { id: formDate, date: formDate, nightshift: formNightshift, coffee: formCoffee };
     if (!formNightshift && !formCoffee) {
+      // Remove if unchecking both
       if (entryMap[formDate]) {
-        try { await api.outreach.remove(row); setEntries(prev => prev.filter(e => e.date !== formDate)); }
-        catch (err) { alert('Delete failed: ' + err.message); }
+        try { await api.outreach.remove(row); } catch (err) { alert('Save failed: ' + err.message); return; }
+        setEntries(prev => prev.filter(e => e.date !== formDate));
       }
       return;
     }
@@ -578,20 +416,20 @@ function OutreachTab({ entries, setEntries }) {
         return [...prev, row];
       });
     } catch (err) {
-      if (err.message && err.message.includes('no unique or exclusion constraint')) {
-        alert('Save failed: the outreach_calendar table needs a UNIQUE constraint on the "date" column. Run this SQL in Supabase:\n\nALTER TABLE outreach_calendar ADD CONSTRAINT outreach_calendar_date_unique UNIQUE (date);');
-      } else {
-        alert('Save failed: ' + err.message);
-      }
+      alert('Save failed: ' + err.message);
     }
   }
   async function deleteEntry(date) {
-    try { await api.outreach.remove({ date }); setEntries(prev => prev.filter(e => e.date !== date)); }
-    catch (err) { alert('Delete failed: ' + err.message); }
+    try {
+      await api.outreach.remove({ date });
+      setEntries(prev => prev.filter(e => e.date !== date));
+    } catch (err) {
+      alert('Delete failed: ' + err.message);
+    }
   }
   function exportCSV() {
     const rows = entries.slice().sort((a, b) => a.date.localeCompare(b.date)).map(e => ({
-      Date: e.date, Nightshift: e.nightshift ? 'Yes' : 'No', Coffee: e.coffee ? 'Yes' : 'No',
+      Date: e.date, 'Nightshift Outreach': e.nightshift ? 'Yes' : 'No', 'Mission Coffee': e.coffee ? 'Yes' : 'No'
     }));
     downloadCSV('outreach_calendar.csv', rows);
   }
@@ -618,8 +456,14 @@ function OutreachTab({ entries, setEntries }) {
             <label className="block text-sm text-gray-600 mb-1">Date</label>
             <input type="date" value={formDate} onChange={e => loadDay(e.target.value)} className="border rounded px-2 py-1" />
           </div>
-          <label className="flex items-center gap-2"><input type="checkbox" checked={formNightshift} onChange={e => setFormNightshift(e.target.checked)} /><span className="text-sm">Nightshift Outreach</span></label>
-          <label className="flex items-center gap-2"><input type="checkbox" checked={formCoffee} onChange={e => setFormCoffee(e.target.checked)} /><span className="text-sm">Mission Coffee</span></label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={formNightshift} onChange={e => setFormNightshift(e.target.checked)} />
+            <span className="text-sm">Nightshift Outreach</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={formCoffee} onChange={e => setFormCoffee(e.target.checked)} />
+            <span className="text-sm">Mission Coffee</span>
+          </label>
           <button onClick={saveEntry} className="bg-blue-600 text-white px-4 py-1.5 rounded flex items-center gap-1"><Plus size={16} />Save Day</button>
           <button onClick={exportCSV} className="ml-auto bg-gray-100 px-3 py-1.5 rounded flex items-center gap-1 text-sm"><Download size={16} />Export CSV</button>
         </div>
@@ -648,8 +492,10 @@ function OutreachTab({ entries, setEntries }) {
                 const e = entryMap[iso];
                 return (
                   <tr key={iso} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => loadDay(iso)}>
-                    <td className="py-1.5">{DAYS[d.getDay()]}</td><td>{iso}</td>
-                    <td>{e?.nightshift ? '✅' : '—'}</td><td>{e?.coffee ? '✅' : '—'}</td>
+                    <td className="py-1.5">{DAYS[d.getDay()]}</td>
+                    <td>{iso}</td>
+                    <td>{e?.nightshift ? '✅' : '—'}</td>
+                    <td>{e?.coffee ? '✅' : '—'}</td>
                     <td>{e && <button onClick={ev => { ev.stopPropagation(); deleteEntry(iso); }}><Trash2 size={14} className="text-red-500" /></button>}</td>
                   </tr>
                 );
@@ -666,7 +512,9 @@ function OutreachTab({ entries, setEntries }) {
             <span className="font-medium">{MONTHS[monthIdx]} {monthYear}</span>
             <button onClick={() => setMonthAnchor(new Date(monthYear, monthIdx + 1, 1))}><ChevronRight /></button>
           </div>
-          <div className="grid grid-cols-7 gap-1 text-xs text-center mb-1 text-gray-500">{DAYS.map(d => <div key={d}>{d}</div>)}</div>
+          <div className="grid grid-cols-7 gap-1 text-xs text-center mb-1 text-gray-500">
+            {DAYS.map(d => <div key={d}>{d}</div>)}
+          </div>
           <div className="grid grid-cols-7 gap-1">
             {monthGridDays.map((d, i) => {
               const iso = toISO(d);
@@ -696,7 +544,8 @@ function OutreachTab({ entries, setEntries }) {
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={yearData}>
               <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
-              <Bar dataKey="nightshift" fill="#3b82f6" /><Bar dataKey="coffee" fill="#f59e0b" />
+              <Bar dataKey="nightshift" name="Nightshift" fill="#3b82f6" />
+              <Bar dataKey="coffee" name="Coffee" fill="#f59e0b" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -705,6 +554,7 @@ function OutreachTab({ entries, setEntries }) {
       {view === 'all' && (
         <div className="grid md:grid-cols-2 gap-4">
           <div className="bg-white rounded-lg shadow p-4">
+            <h3 className="font-medium mb-2">All-Time Split</h3>
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
                 <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={80} label>
@@ -715,10 +565,12 @@ function OutreachTab({ entries, setEntries }) {
             </ResponsiveContainer>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
+            <h3 className="font-medium mb-2">By Year</h3>
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={allYearData}>
                 <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="year" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
-                <Bar dataKey="nightshift" fill="#3b82f6" /><Bar dataKey="coffee" fill="#f59e0b" />
+                <Bar dataKey="nightshift" name="Nightshift" fill="#3b82f6" />
+                <Bar dataKey="coffee" name="Coffee" fill="#f59e0b" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -741,16 +593,25 @@ function BlanketTab({ entries, setEntries }) {
 
   async function addEntry() {
     if (!blanketsCount && !coatsCount && !poundsCount) return;
-    const row = { date: formDate, blankets: Number(blanketsCount) || 0, coats: Number(coatsCount) || 0, pounds: Number(poundsCount) || 0 };
+    const row = {
+      date: formDate,
+      blankets: Number(blanketsCount) || 0,
+      coats: Number(coatsCount) || 0,
+      pounds: Number(poundsCount) || 0,
+    };
     try {
       const id = await api.blankets.insert(row);
       setEntries(prev => [...prev, { ...row, id }]);
       setBlanketsCount(''); setCoatsCount(''); setPoundsCount('');
-    } catch (err) { alert('Save failed: ' + err.message); }
+    } catch (err) {
+      alert('Save failed: ' + err.message);
+    }
   }
   async function deleteEntry(row) {
-    try { await api.blankets.remove(row); setEntries(prev => prev.filter(e => e.id !== row.id)); }
-    catch (err) { alert('Delete failed: ' + err.message); }
+    try {
+      await api.blankets.remove(row);
+      setEntries(prev => prev.filter(e => e.id !== row.id));
+    } catch (err) { alert('Delete failed: ' + err.message); }
   }
   function exportCSV() {
     const rows = entries.slice().sort((a, b) => a.date.localeCompare(b.date)).map(e => ({ Date: e.date, Blankets: e.blankets, 'Coats/Hoodies': e.coats, Pounds: e.pounds }));
@@ -789,13 +650,21 @@ function BlanketTab({ entries, setEntries }) {
 
       {view === 'week' && (
         <div className="bg-white rounded-lg shadow p-4">
+          <div className="flex items-center justify-between mb-3">
+            <button onClick={() => setWeekAnchor(addDays(weekStart, -7))}><ChevronLeft /></button>
+            <span className="font-medium">{toISO(weekStart)} — {toISO(addDays(weekStart, 6))}</span>
+            <button onClick={() => setWeekAnchor(addDays(weekStart, 7))}><ChevronRight /></button>
+          </div>
           <table className="w-full text-sm">
             <thead><tr className="text-left border-b"><th className="py-1">Date</th><th>Blankets</th><th>Coats</th><th>Pounds</th><th></th></tr></thead>
             <tbody>
               {weekEntries.sort((a, b) => a.date.localeCompare(b.date)).map(e => (
-                <tr key={e.id} className="border-b"><td className="py-1.5">{e.date}</td><td>{e.blankets}</td><td>{e.coats}</td><td>{e.pounds}</td>
-                  <td><button onClick={() => deleteEntry(e)}><Trash2 size={14} className="text-red-500" /></button></td></tr>
+                <tr key={e.id} className="border-b">
+                  <td className="py-1.5">{e.date}</td><td>{e.blankets}</td><td>{e.coats}</td><td>{e.pounds}</td>
+                  <td><button onClick={() => deleteEntry(e)}><Trash2 size={14} className="text-red-500" /></button></td>
+                </tr>
               ))}
+              {weekEntries.length === 0 && <tr><td colSpan="5" className="text-center text-gray-400 py-3">No entries this week</td></tr>}
             </tbody>
           </table>
         </div>
@@ -803,17 +672,38 @@ function BlanketTab({ entries, setEntries }) {
 
       {view === 'month' && (
         <div className="bg-white rounded-lg shadow p-4">
+          <div className="flex items-center justify-between mb-3">
+            <button onClick={() => setMonthAnchor(new Date(monthYear, monthIdx - 1, 1))}><ChevronLeft /></button>
+            <span className="font-medium">{MONTHS[monthIdx]} {monthYear}</span>
+            <button onClick={() => setMonthAnchor(new Date(monthYear, monthIdx + 1, 1))}><ChevronRight /></button>
+          </div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={sumByDayInMonth(entries, monthYear, monthIdx, ['blankets', 'coats'])}>
               <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="day" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
               <Bar dataKey="blankets" fill="#8b5cf6" /><Bar dataKey="coats" fill="#14b8a6" />
             </BarChart>
           </ResponsiveContainer>
+          <table className="w-full text-sm mt-4">
+            <thead><tr className="text-left border-b"><th className="py-1">Date</th><th>Blankets</th><th>Coats</th><th>Pounds</th><th></th></tr></thead>
+            <tbody>
+              {monthEntries.sort((a, b) => a.date.localeCompare(b.date)).map(e => (
+                <tr key={e.id} className="border-b">
+                  <td className="py-1.5">{e.date}</td><td>{e.blankets}</td><td>{e.coats}</td><td>{e.pounds}</td>
+                  <td><button onClick={() => deleteEntry(e)}><Trash2 size={14} className="text-red-500" /></button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
       {view === 'year' && (
         <div className="bg-white rounded-lg shadow p-4">
+          <div className="flex items-center justify-between mb-3">
+            <button onClick={() => setYearSelected(y => y - 1)}><ChevronLeft /></button>
+            <span className="font-medium">{yearSelected}</span>
+            <button onClick={() => setYearSelected(y => y + 1)}><ChevronRight /></button>
+          </div>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={yearData}>
               <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
@@ -837,21 +727,15 @@ function BlanketTab({ entries, setEntries }) {
   );
 }
 
-// ---------------- Donations (with donor dropdown + Add Donor button) ----------------
-function DonationTab({ entries, setEntries, itemTypes, setItemTypes, donors, setDonors }) {
+// ---------------- Donations ----------------
+function DonationTab({ entries, setEntries, itemTypes, setItemTypes }) {
   const [formDate, setFormDate] = useState(todayISO);
-  const [formDonorId, setFormDonorId] = useState('');
   const [formQuantities, setFormQuantities] = useState({});
   const [newItemName, setNewItemName] = useState('');
-  const [showDonorModal, setShowDonorModal] = useState(false);
   const [view, setView] = useState('week');
   const [weekAnchor, setWeekAnchor] = useState(new Date());
   const [monthAnchor, setMonthAnchor] = useState(new Date());
   const [yearSelected, setYearSelected] = useState(new Date().getFullYear());
-
-  const donorMap = {};
-  donors.forEach(d => { donorMap[d.id] = d; });
-  const donorLabel = id => (id && donorMap[id]) ? donorMap[id].name : 'Anonymous';
 
   function updateQuantity(type, value) { setFormQuantities(prev => ({ ...prev, [type]: value })); }
   function addItemType() {
@@ -863,46 +747,39 @@ function DonationTab({ entries, setEntries, itemTypes, setItemTypes, donors, set
   }
   function removeItemType(t) { setItemTypes(prev => prev.filter(x => x !== t)); }
 
-  function handleDonorSaved(row) {
-    setDonors(prev => {
-      const idx = prev.findIndex(d => d.id === row.id);
-      if (idx >= 0) { const copy = [...prev]; copy[idx] = row; return copy.sort((a, b) => a.name.localeCompare(b.name)); }
-      return [...prev, row].sort((a, b) => a.name.localeCompare(b.name));
-    });
-    setFormDonorId(String(row.id));
-  }
-
   async function saveEntry() {
     const quantities = {};
     itemTypes.forEach(t => { quantities[t] = Number(formQuantities[t]) || 0; });
     const total = Object.values(quantities).reduce((s, v) => s + v, 0);
     if (total === 0) { alert('Enter at least one quantity > 0.'); return; }
 
-    const donorIdNum = formDonorId ? Number(formDonorId) : null;
-    const existing = entries.find(e => e.date === formDate && (e.donor_id ?? null) === donorIdNum);
+    // Merge with existing quantities for this date (in case user is adding to a date)
+    const existing = entries.find(e => e.date === formDate);
     const merged = existing ? { ...existing.quantities } : {};
     Object.entries(quantities).forEach(([k, v]) => { if (v > 0) merged[k] = (merged[k] || 0) + v; });
 
-    const key = `${formDate}|${donorIdNum ?? 'null'}`;
-    const row = { id: key, date: formDate, donor_id: donorIdNum, quantities: merged };
-
+    const row = { id: formDate, date: formDate, quantities: merged };
     try {
-      await api.donations.upsertEntry(row);
+      await api.donations.upsertDate(row);
       setEntries(prev => {
-        const idx = prev.findIndex(e => e.date === formDate && (e.donor_id ?? null) === donorIdNum);
-        if (idx >= 0) { const copy = [...prev]; copy[idx] = row; return copy; }
+        const exists = prev.find(e => e.date === formDate);
+        if (exists) return prev.map(e => e.date === formDate ? row : e);
         return [...prev, row];
       });
       setFormQuantities({});
-    } catch (err) { alert('Save failed: ' + err.message); }
+    } catch (err) {
+      alert('Save failed: ' + err.message);
+    }
   }
   async function deleteEntry(row) {
-    try { await api.donations.removeEntry(row); setEntries(prev => prev.filter(e => e.id !== row.id)); }
-    catch (err) { alert('Delete failed: ' + err.message); }
+    try {
+      await api.donations.removeDate(row);
+      setEntries(prev => prev.filter(e => e.date !== row.date));
+    } catch (err) { alert('Delete failed: ' + err.message); }
   }
   function exportCSV() {
     const rows = entries.slice().sort((a, b) => a.date.localeCompare(b.date)).map(e => {
-      const row = { Date: e.date, Donor: donorLabel(e.donor_id) };
+      const row = { Date: e.date };
       itemTypes.forEach(t => { row[t] = e.quantities[t] || 0; });
       return row;
     });
@@ -919,22 +796,10 @@ function DonationTab({ entries, setEntries, itemTypes, setItemTypes, donors, set
   const allTimeTotals = sumDonationsAllTime(entries, itemTypes);
   const pieData = itemTypes.map(t => ({ name: t, value: allTimeTotals[t] || 0 })).filter(d => d.value > 0);
 
-  // Top donors by total items
-  const donorTotals = {};
-  entries.forEach(e => {
-    const key = e.donor_id ?? 'null';
-    const total = Object.values(e.quantities || {}).reduce((s, v) => s + (Number(v) || 0), 0);
-    donorTotals[key] = (donorTotals[key] || 0) + total;
-  });
-  const topDonors = Object.entries(donorTotals)
-    .map(([k, v]) => ({ donor: k === 'null' ? 'Anonymous' : (donorMap[Number(k)]?.name || 'Unknown'), total: v }))
-    .sort((a, b) => b.total - a.total).slice(0, 10);
-
   return (
     <div className="flex flex-col gap-6">
       <div className="bg-white rounded-lg shadow p-4">
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Gift size={20} /> Log Donations</h2>
-
         <div className="mb-3">
           <div className="text-sm text-gray-600 mb-1">Item types:</div>
           <div className="flex flex-wrap gap-2">
@@ -949,33 +814,8 @@ function DonationTab({ entries, setEntries, itemTypes, setItemTypes, donors, set
           <input type="text" placeholder="Add item type" value={newItemName} onChange={e => setNewItemName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItemType(); } }} className="border rounded px-2 py-1 text-sm flex-1 max-w-xs" />
           <button onClick={addItemType} className="bg-emerald-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-1"><Plus size={14} />Add Type</button>
         </div>
-
         <div className="flex flex-wrap items-end gap-4">
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Date</label>
-            <input type="date" value={formDate} onChange={e => setFormDate(e.target.value)} className="border rounded px-2 py-1" />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1 flex items-center gap-1"><Users size={14} /> Donor</label>
-            <div className="flex items-center gap-1">
-              <select value={formDonorId} onChange={e => setFormDonorId(e.target.value)} className="border rounded px-2 py-1 min-w-40">
-                <option value="">— Anonymous —</option>
-                {donors.map(d => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}{d.organization ? ` (${d.organization})` : ''}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => setShowDonorModal(true)}
-                title="Add new donor"
-                className="bg-cyan-600 text-white px-2 py-1.5 rounded flex items-center gap-1 text-sm"
-              >
-                <Plus size={14} />
-              </button>
-            </div>
-          </div>
+          <div><label className="block text-sm text-gray-600 mb-1">Date</label><input type="date" value={formDate} onChange={e => setFormDate(e.target.value)} className="border rounded px-2 py-1" /></div>
           {itemTypes.map(t => (
             <div key={t}><label className="block text-sm text-gray-600 mb-1">{t}</label>
               <input type="number" min="0" value={formQuantities[t] ?? ''} onChange={e => updateQuantity(t, e.target.value)} className="border rounded px-2 py-1 w-24" /></div>
@@ -996,17 +836,15 @@ function DonationTab({ entries, setEntries, itemTypes, setItemTypes, donors, set
       {view === 'week' && (
         <div className="bg-white rounded-lg shadow p-4 overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="text-left border-b"><th className="py-1">Date</th><th>Donor</th>{itemTypes.map(t => <th key={t}>{t}</th>)}<th></th></tr></thead>
+            <thead><tr className="text-left border-b"><th className="py-1">Date</th>{itemTypes.map(t => <th key={t}>{t}</th>)}<th></th></tr></thead>
             <tbody>
               {weekEntries.sort((a, b) => a.date.localeCompare(b.date)).map(e => (
                 <tr key={e.id} className="border-b">
                   <td className="py-1.5">{e.date}</td>
-                  <td>{donorLabel(e.donor_id)}</td>
                   {itemTypes.map(t => <td key={t}>{e.quantities[t] || 0}</td>)}
                   <td><button onClick={() => deleteEntry(e)}><Trash2 size={14} className="text-red-500" /></button></td>
                 </tr>
               ))}
-              {weekEntries.length === 0 && <tr><td colSpan={itemTypes.length + 3} className="text-center text-gray-400 py-3">No entries this week</td></tr>}
             </tbody>
           </table>
         </div>
@@ -1020,19 +858,6 @@ function DonationTab({ entries, setEntries, itemTypes, setItemTypes, donors, set
               {itemTypes.map((t, i) => <Bar key={t} dataKey={t} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
             </BarChart>
           </ResponsiveContainer>
-          <table className="w-full text-sm mt-4">
-            <thead><tr className="text-left border-b"><th className="py-1">Date</th><th>Donor</th>{itemTypes.map(t => <th key={t}>{t}</th>)}<th></th></tr></thead>
-            <tbody>
-              {monthEntries.sort((a, b) => a.date.localeCompare(b.date)).map(e => (
-                <tr key={e.id} className="border-b">
-                  <td className="py-1.5">{e.date}</td>
-                  <td>{donorLabel(e.donor_id)}</td>
-                  {itemTypes.map(t => <td key={t}>{e.quantities[t] || 0}</td>)}
-                  <td><button onClick={() => deleteEntry(e)}><Trash2 size={14} className="text-red-500" /></button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       )}
 
@@ -1050,7 +875,6 @@ function DonationTab({ entries, setEntries, itemTypes, setItemTypes, donors, set
       {view === 'all' && (
         <div className="grid md:grid-cols-2 gap-4">
           <div className="bg-white rounded-lg shadow p-4">
-            <h3 className="font-medium mb-2">Split by Item Type</h3>
             {pieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
@@ -1063,7 +887,6 @@ function DonationTab({ entries, setEntries, itemTypes, setItemTypes, donors, set
             ) : <div className="text-gray-400 py-8 text-center text-sm">No donations yet</div>}
           </div>
           <div className="bg-white rounded-lg shadow p-4">
-            <h3 className="font-medium mb-2">By Year</h3>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={allYearData}>
                 <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="year" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
@@ -1071,21 +894,8 @@ function DonationTab({ entries, setEntries, itemTypes, setItemTypes, donors, set
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="bg-white rounded-lg shadow p-4 md:col-span-2">
-            <h3 className="font-medium mb-2">Top Donors (by total items)</h3>
-            {topDonors.length > 0 ? (
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={topDonors} layout="vertical" margin={{ left: 40 }}>
-                  <CartesianGrid strokeDasharray="3 3" /><XAxis type="number" /><YAxis type="category" dataKey="donor" width={120} /><Tooltip />
-                  <Bar dataKey="total" fill="#06b6d4" />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : <div className="text-gray-400 py-4 text-center text-sm">No donor data yet</div>}
-          </div>
         </div>
       )}
-
-      {showDonorModal && <DonorFormModal onClose={() => setShowDonorModal(false)} onSaved={handleDonorSaved} />}
     </div>
   );
 }
@@ -1102,21 +912,28 @@ function ClosetTab({ entries, setEntries }) {
   async function addEntry() {
     if (!peopleCount) return;
     const row = { date: formDate, people: Number(peopleCount) || 0 };
-    try { const id = await api.closet.insert(row); setEntries(prev => [...prev, { ...row, id }]); setPeopleCount(''); }
-    catch (err) { alert('Save failed: ' + err.message); }
+    try {
+      const id = await api.closet.insert(row);
+      setEntries(prev => [...prev, { ...row, id }]);
+      setPeopleCount('');
+    } catch (err) { alert('Save failed: ' + err.message); }
   }
   async function deleteEntry(row) {
-    try { await api.closet.remove(row); setEntries(prev => prev.filter(e => e.id !== row.id)); }
-    catch (err) { alert('Delete failed: ' + err.message); }
+    try {
+      await api.closet.remove(row);
+      setEntries(prev => prev.filter(e => e.id !== row.id));
+    } catch (err) { alert('Delete failed: ' + err.message); }
   }
   function exportCSV() {
-    downloadCSV('clothing_closet.csv', entries.slice().sort((a, b) => a.date.localeCompare(b.date)).map(e => ({ Date: e.date, 'People Served': e.people })));
+    const rows = entries.slice().sort((a, b) => a.date.localeCompare(b.date)).map(e => ({ Date: e.date, 'People Served': e.people }));
+    downloadCSV('clothing_closet.csv', rows);
   }
 
   const weekStart = startOfWeek(weekAnchor);
   const weekEntries = entries.filter(e => { const d = parseISO(e.date); return d >= weekStart && d <= addDays(weekStart, 6); });
   const monthYear = monthAnchor.getFullYear();
   const monthIdx = monthAnchor.getMonth();
+  const monthEntries = entries.filter(e => { const d = parseISO(e.date); return d.getFullYear() === monthYear && d.getMonth() === monthIdx; });
   const yearData = MONTHS.map((m, i) => ({ month: m, people: entries.filter(e => { const d = parseISO(e.date); return d.getFullYear() === yearSelected && d.getMonth() === i; }).reduce((s, e) => s + e.people, 0) }));
   const yearMap = {};
   entries.forEach(e => { const y = parseISO(e.date).getFullYear(); yearMap[y] = (yearMap[y] || 0) + e.people; });
@@ -1209,21 +1026,31 @@ function ReceiptsTab({ receipts, setReceipts }) {
   function addItemRow() { setItems(prev => [...prev, { name: '', cost: '', category: CATEGORIES[0] }]); }
   function removeItemRow(i) { setItems(prev => prev.filter((_, idx) => idx !== i)); }
   function handleImage(e) {
-    const file = e.target.files[0]; if (!file) return;
-    const reader = new FileReader(); reader.onload = () => setImage(reader.result); reader.readAsDataURL(file);
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setImage(reader.result);
+    reader.readAsDataURL(file);
   }
   async function saveReceipt() {
     if (!store || items.every(it => !it.name && !it.cost)) { alert('Enter a store and at least one item.'); return; }
-    const row = { date, store, image, items: items.filter(it => it.name || it.cost).map(it => ({ ...it, cost: Number(it.cost) || 0 })) };
+    const row = {
+      date, store, image,
+      items: items.filter(it => it.name || it.cost).map(it => ({ ...it, cost: Number(it.cost) || 0 })),
+    };
     try {
       const id = await api.receipts.insert(row);
       setReceipts(prev => [...prev, { ...row, id }]);
       setDate(todayISO); setStore(''); setItems([{ name: '', cost: '', category: CATEGORIES[0] }]); setImage(null);
-    } catch (err) { alert('Save failed: ' + err.message); }
+    } catch (err) {
+      alert('Save failed: ' + err.message);
+    }
   }
   async function deleteReceipt(row) {
-    try { await api.receipts.remove(row); setReceipts(prev => prev.filter(r => r.id !== row.id)); }
-    catch (err) { alert('Delete failed: ' + err.message); }
+    try {
+      await api.receipts.remove(row);
+      setReceipts(prev => prev.filter(r => r.id !== row.id));
+    } catch (err) { alert('Delete failed: ' + err.message); }
   }
   function exportCSV() {
     const rows = [];
@@ -1320,7 +1147,7 @@ function ReceiptsTab({ receipts, setReceipts }) {
         <div className="grid md:grid-cols-2 gap-4">
           <div className="bg-white rounded-lg shadow p-4 md:col-span-2 text-center">
             <div className="text-3xl font-bold">${totalSpent.toFixed(2)}</div>
-            <div className="text-sm text-gray-500">Total ({filtered.length} receipts)</div>
+            <div className="text-sm text-gray-500">Total spent ({filtered.length} receipts)</div>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
             <ResponsiveContainer width="100%" height={260}>
@@ -1362,7 +1189,6 @@ export default function OlympiaNightshiftTracker() {
   const [closet, setCloset, loadingCloset] = useCollection(api.closet.load);
   const [receipts, setReceipts, loadingReceipts] = useCollection(api.receipts.load);
   const [donations, setDonations, loadingDonations] = useCollection(api.donations.load);
-  const [donors, setDonors, loadingDonors] = useCollection(api.donors.load);
   const [donationItemTypes, setDonationItemTypes] = useState(['Blankets', 'Coats/Hoodies']);
 
   useEffect(() => {
@@ -1374,14 +1200,13 @@ export default function OlympiaNightshiftTracker() {
     });
   }, [loadingDonations, donations]);
 
-  const loading = loadingOutreach || loadingBlankets || loadingCloset || loadingReceipts || loadingDonations || loadingDonors;
+  const loading = loadingOutreach || loadingBlankets || loadingCloset || loadingReceipts || loadingDonations;
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'outreach', label: 'Outreach', icon: Calendar },
     { id: 'blankets', label: 'Blankets', icon: Package },
     { id: 'donations', label: 'Donations', icon: Gift },
-    { id: 'contacts', label: 'Contacts', icon: Users },
     { id: 'closet', label: 'Closet', icon: Shirt },
     { id: 'receipts', label: 'Receipts', icon: ReceiptIcon },
   ];
@@ -1393,7 +1218,7 @@ export default function OlympiaNightshiftTracker() {
       <div className="min-h-screen bg-gray-100">
         <div className="bg-blue-900 text-white p-4">
           <h1 className="text-xl font-bold">Olympia Downtown Nightshift — Data Tracker</h1>
-          <p className="text-blue-200 text-sm">Outreach • Blankets • Donations • Contacts • Closet • Receipts</p>
+          <p className="text-blue-200 text-sm">Outreach • Blankets • Donations • Closet • Receipts</p>
         </div>
         <div className="flex flex-wrap gap-2 p-3 bg-white border-b sticky top-0 z-10">
           {tabs.map(t => {
@@ -1406,11 +1231,10 @@ export default function OlympiaNightshiftTracker() {
           })}
         </div>
         <div className="p-4 max-w-6xl mx-auto">
-          {tab === 'dashboard' && <Dashboard outreach={outreach} blankets={blankets} closet={closet} receipts={receipts} donations={donations} donationItemTypes={donationItemTypes} donors={donors} />}
+          {tab === 'dashboard' && <Dashboard outreach={outreach} blankets={blankets} closet={closet} receipts={receipts} donations={donations} donationItemTypes={donationItemTypes} />}
           {tab === 'outreach' && <OutreachTab entries={outreach} setEntries={setOutreach} />}
           {tab === 'blankets' && <BlanketTab entries={blankets} setEntries={setBlankets} />}
-          {tab === 'donations' && <DonationTab entries={donations} setEntries={setDonations} itemTypes={donationItemTypes} setItemTypes={setDonationItemTypes} donors={donors} setDonors={setDonors} />}
-          {tab === 'contacts' && <ContactsTab donors={donors} setDonors={setDonors} />}
+          {tab === 'donations' && <DonationTab entries={donations} setEntries={setDonations} itemTypes={donationItemTypes} setItemTypes={setDonationItemTypes} />}
           {tab === 'closet' && <ClosetTab entries={closet} setEntries={setCloset} />}
           {tab === 'receipts' && <ReceiptsTab receipts={receipts} setReceipts={setReceipts} />}
         </div>

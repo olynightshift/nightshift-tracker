@@ -11,7 +11,7 @@ const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, 
 
 const TABLES = {
   outreach: 'outreach_calendar',
-  blankets: 'blanket_salvage',
+  salvage: 'salvage',
   donations: 'donations',
   closet: 'clothing_closet',
   receipts: 'receipts',
@@ -27,7 +27,7 @@ const startOfWeek = d => { const r = new Date(d.getFullYear(), d.getMonth(), d.g
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const todayISO = toISO(new Date());
-const PIE_COLORS = ['#3b82f6','#f59e0b','#8b5cf6','#14b8a6','#22c55e','#ec4899','#ef4444','#6366f1','#84cc16','#06b6d4'];
+const PIE_COLORS = ['#8b5cf6','#14b8a6','#f59e0b','#3b82f6','#22c55e','#ec4899','#ef4444','#6366f1','#84cc16','#06b6d4'];
 
 function downloadCSV(filename, rows) {
   if (!rows || rows.length === 0) { alert('No data to export yet.'); return; }
@@ -70,41 +70,6 @@ function groupOutreachByYear(entries) {
   });
   return Object.values(map).sort((a, b) => a.year - b.year);
 }
-function sumBlanketsByMonth(entries, year) {
-  const data = MONTHS.map(m => ({ month: m, blankets: 0, coats: 0, pounds: 0 }));
-  entries.forEach(e => {
-    const d = parseISO(e.date);
-    if (d.getFullYear() === year) {
-      data[d.getMonth()].blankets += Number(e.blankets) || 0;
-      data[d.getMonth()].coats += Number(e.coats) || 0;
-      data[d.getMonth()].pounds += Number(e.pounds) || 0;
-    }
-  });
-  return data;
-}
-function sumBlanketsByYear(entries) {
-  const map = {};
-  entries.forEach(e => {
-    const y = parseISO(e.date).getFullYear();
-    if (!map[y]) map[y] = { year: y, blankets: 0, coats: 0, pounds: 0 };
-    map[y].blankets += Number(e.blankets) || 0;
-    map[y].coats += Number(e.coats) || 0;
-    map[y].pounds += Number(e.pounds) || 0;
-  });
-  return Object.values(map).sort((a, b) => a.year - b.year);
-}
-function sumByDayInMonth(entries, year, month, keys) {
-  const map = {};
-  entries.forEach(e => {
-    const d = parseISO(e.date);
-    if (d.getFullYear() === year && d.getMonth() === month) {
-      const day = d.getDate();
-      if (!map[day]) { map[day] = { day }; keys.forEach(k => map[day][k] = 0); }
-      keys.forEach(k => map[day][k] += Number(e[k]) || 0);
-    }
-  });
-  return Object.values(map).sort((a, b) => a.day - b.day);
-}
 function receiptTotal(r) { return r.items.reduce((s, it) => s + (Number(it.cost) || 0), 0); }
 function sumReceiptsByStore(receipts) {
   const map = {};
@@ -119,7 +84,21 @@ function sumReceiptsByCategory(receipts) {
   }));
   return Object.entries(map).map(([category, total]) => ({ category, total }));
 }
-function sumDonationsByDayInMonth(entries, year, month, itemTypes) {
+
+// quantity-style aggregates (shared by donations + salvage)
+function sumByDayInMonth(entries, year, month, keys) {
+  const map = {};
+  entries.forEach(e => {
+    const d = parseISO(e.date);
+    if (d.getFullYear() === year && d.getMonth() === month) {
+      const day = d.getDate();
+      if (!map[day]) { map[day] = { day }; keys.forEach(k => map[day][k] = 0); }
+      keys.forEach(k => map[day][k] += Number(e.quantities?.[k] ?? e[k]) || 0);
+    }
+  });
+  return Object.values(map).sort((a, b) => a.day - b.day);
+}
+function sumQuantitiesByDayInMonth(entries, year, month, itemTypes) {
   const map = {};
   entries.forEach(e => {
     const d = parseISO(e.date);
@@ -131,7 +110,7 @@ function sumDonationsByDayInMonth(entries, year, month, itemTypes) {
   });
   return Object.values(map).sort((a, b) => a.day - b.day);
 }
-function sumDonationsByMonth(entries, year, itemTypes) {
+function sumQuantitiesByMonth(entries, year, itemTypes) {
   const data = MONTHS.map(m => { const o = { month: m }; itemTypes.forEach(t => o[t] = 0); return o; });
   entries.forEach(e => {
     const d = parseISO(e.date);
@@ -141,7 +120,7 @@ function sumDonationsByMonth(entries, year, itemTypes) {
   });
   return data;
 }
-function sumDonationsByYear(entries, itemTypes) {
+function sumQuantitiesByYear(entries, itemTypes) {
   const map = {};
   entries.forEach(e => {
     const y = parseISO(e.date).getFullYear();
@@ -150,7 +129,7 @@ function sumDonationsByYear(entries, itemTypes) {
   });
   return Object.values(map).sort((a, b) => a.year - b.year);
 }
-function sumDonationsAllTime(entries, itemTypes) {
+function sumQuantitiesAllTime(entries, itemTypes) {
   const totals = {};
   itemTypes.forEach(t => { totals[t] = entries.reduce((s, e) => s + (Number(e.quantities[t]) || 0), 0); });
   return totals;
@@ -176,27 +155,40 @@ const api = {
       if (error) throw error;
     },
   },
-  blankets: {
+  salvage: {
     async load() {
-      const { data, error } = await supabase.from(TABLES.blankets).select('id, date, blankets, coats, pounds');
+      const { data, error } = await supabase.from(TABLES.salvage).select('date, item_type, quantity, donor_id');
       if (error) throw error;
-      return (data || []).map(r => ({ id: r.id, date: r.date, blankets: Number(r.blankets) || 0, coats: Number(r.coats) || 0, pounds: Number(r.pounds) || 0 }));
+      const map = {};
+      (data || []).forEach(r => {
+        if (!r.date || !r.item_type) return;
+        const key = `${r.date}|${r.donor_id ?? 'null'}`;
+        if (!map[key]) map[key] = { id: key, date: r.date, donor_id: r.donor_id ?? null, quantities: {} };
+        map[key].quantities[r.item_type] = (map[key].quantities[r.item_type] || 0) + (Number(r.quantity) || 0);
+      });
+      return Object.values(map);
     },
-    async insert(row) {
-      const { data, error } = await supabase.from(TABLES.blankets).insert({
-        date: row.date, blankets: Number(row.blankets) || 0, coats: Number(row.coats) || 0, pounds: Number(row.pounds) || 0,
-      }).select('id').single();
+    async upsertEntry(row) {
+      let del = supabase.from(TABLES.salvage).delete().eq('date', row.date);
+      del = row.donor_id == null ? del.is('donor_id', null) : del.eq('donor_id', row.donor_id);
+      const { error: delErr } = await del;
+      if (delErr) throw delErr;
+      const payload = Object.entries(row.quantities || {})
+        .filter(([, q]) => Number(q) > 0)
+        .map(([item_type, quantity]) => ({
+          date: row.date,
+          item_type,
+          quantity: Number(quantity),
+          donor_id: row.donor_id ?? null,
+        }));
+      if (payload.length === 0) return;
+      const { error } = await supabase.from(TABLES.salvage).insert(payload);
       if (error) throw error;
-      return data.id;
     },
-    async update(row) {
-      const { error } = await supabase.from(TABLES.blankets).update({
-        date: row.date, blankets: Number(row.blankets) || 0, coats: Number(row.coats) || 0, pounds: Number(row.pounds) || 0,
-      }).eq('id', row.id);
-      if (error) throw error;
-    },
-    async remove(row) {
-      const { error } = await supabase.from(TABLES.blankets).delete().eq('id', row.id);
+    async removeEntry(row) {
+      let del = supabase.from(TABLES.salvage).delete().eq('date', row.date);
+      del = row.donor_id == null ? del.is('donor_id', null) : del.eq('donor_id', row.donor_id);
+      const { error } = await del;
       if (error) throw error;
     },
   },
@@ -517,12 +509,11 @@ function ContactsTab({ donors, setDonors }) {
 // ============================================================
 // Dashboard
 // ============================================================
-function Dashboard({ outreach, blankets, closet, receipts, donations, donationItemTypes, donors }) {
+function Dashboard({ outreach, salvage, closet, receipts, donations, salvageItemTypes, donationItemTypes, donors }) {
   const totalNightshift = outreach.filter(e => e.nightshift).length;
   const totalCoffee = outreach.filter(e => e.coffee).length;
-  const totalBlankets = blankets.reduce((s, e) => s + e.blankets, 0);
-  const totalCoats = blankets.reduce((s, e) => s + e.coats, 0);
-  const totalPounds = blankets.reduce((s, e) => s + e.pounds, 0);
+  const salvageTotals = sumQuantitiesAllTime(salvage, salvageItemTypes);
+  const totalSalvageItems = Object.values(salvageTotals).reduce((s, v) => s + v, 0);
   const totalPeople = closet.reduce((s, e) => s + e.people, 0);
   const totalSpent = receipts.reduce((s, r) => s + receiptTotal(r), 0);
   const totalDonatedItems = donations.reduce((s, e) => s + Object.values(e.quantities).reduce((ss, v) => ss + (Number(v) || 0), 0), 0);
@@ -530,9 +521,7 @@ function Dashboard({ outreach, blankets, closet, receipts, donations, donationIt
   const stats = [
     { label: 'Nightshift Days', value: totalNightshift, color: 'bg-blue-500' },
     { label: 'Coffee Days', value: totalCoffee, color: 'bg-amber-500' },
-    { label: 'Blankets Salvaged', value: totalBlankets, color: 'bg-purple-500' },
-    { label: 'Coats/Hoodies', value: totalCoats, color: 'bg-teal-500' },
-    { label: 'Pounds Textiles', value: totalPounds.toFixed(1), color: 'bg-green-500' },
+    { label: 'Salvage Items', value: totalSalvageItems, color: 'bg-purple-500' },
     { label: 'People Served', value: totalPeople, color: 'bg-pink-500' },
     { label: 'Items Donated', value: totalDonatedItems, color: 'bg-emerald-500' },
     { label: 'Donors', value: donors.length, color: 'bg-cyan-500' },
@@ -542,7 +531,7 @@ function Dashboard({ outreach, blankets, closet, receipts, donations, donationIt
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {stats.map(s => (
           <div key={s.label} className="bg-white rounded-lg shadow p-3">
             <div className={`w-2 h-2 rounded-full ${s.color} mb-2`} />
@@ -784,12 +773,13 @@ function OutreachTab({ entries, setEntries }) {
   );
 }
 
-// ---------------- Blanket ----------------
-function BlanketTab({ entries, setEntries }) {
+// ---------------- SALVAGE (formerly Blankets) ----------------
+function SalvageTab({ entries, setEntries, itemTypes, setItemTypes, donors, setDonors }) {
   const [formDate, setFormDate] = useState(todayISO);
-  const [blanketsCount, setBlanketsCount] = useState('');
-  const [coatsCount, setCoatsCount] = useState('');
-  const [poundsCount, setPoundsCount] = useState('');
+  const [formDonorId, setFormDonorId] = useState('');
+  const [formQuantities, setFormQuantities] = useState({});
+  const [newItemName, setNewItemName] = useState('');
+  const [showDonorModal, setShowDonorModal] = useState(false);
   const [view, setView] = useState('week');
   const [weekAnchor, setWeekAnchor] = useState(new Date());
   const [monthAnchor, setMonthAnchor] = useState(new Date());
@@ -797,22 +787,64 @@ function BlanketTab({ entries, setEntries }) {
   const [editingId, setEditingId] = useState(null);
   const [editBuffer, setEditBuffer] = useState({});
 
-  async function addEntry() {
-    if (!blanketsCount && !coatsCount && !poundsCount) return;
-    const row = { date: formDate, blankets: Number(blanketsCount) || 0, coats: Number(coatsCount) || 0, pounds: Number(poundsCount) || 0 };
+  const donorMap = {};
+  donors.forEach(d => { donorMap[d.id] = d; });
+  const donorLabel = id => (id && donorMap[id]) ? donorMap[id].name : 'Anonymous';
+
+  function updateQuantity(type, value) { setFormQuantities(prev => ({ ...prev, [type]: value })); }
+  function addItemType() {
+    const name = newItemName.trim();
+    if (!name) return;
+    if (itemTypes.some(t => t.toLowerCase() === name.toLowerCase())) { alert('Already exists.'); return; }
+    setItemTypes(prev => [...prev, name]);
+    setNewItemName('');
+  }
+  function removeItemType(t) { setItemTypes(prev => prev.filter(x => x !== t)); }
+
+  function handleDonorSaved(row) {
+    setDonors(prev => {
+      const idx = prev.findIndex(d => d.id === row.id);
+      if (idx >= 0) { const copy = [...prev]; copy[idx] = row; return copy.sort((a, b) => a.name.localeCompare(b.name)); }
+      return [...prev, row].sort((a, b) => a.name.localeCompare(b.name));
+    });
+    setFormDonorId(String(row.id));
+  }
+
+  async function saveEntry() {
+    const quantities = {};
+    itemTypes.forEach(t => { quantities[t] = Number(formQuantities[t]) || 0; });
+    const total = Object.values(quantities).reduce((s, v) => s + v, 0);
+    if (total === 0) { alert('Enter at least one quantity > 0.'); return; }
+
+    const donorIdNum = formDonorId ? Number(formDonorId) : null;
+    const existing = entries.find(e => e.date === formDate && (e.donor_id ?? null) === donorIdNum);
+    const merged = existing ? { ...existing.quantities } : {};
+    Object.entries(quantities).forEach(([k, v]) => { if (v > 0) merged[k] = (merged[k] || 0) + v; });
+
+    const key = `${formDate}|${donorIdNum ?? 'null'}`;
+    const row = { id: key, date: formDate, donor_id: donorIdNum, quantities: merged };
+
     try {
-      const id = await api.blankets.insert(row);
-      setEntries(prev => [...prev, { ...row, id }]);
-      setBlanketsCount(''); setCoatsCount(''); setPoundsCount('');
+      await api.salvage.upsertEntry(row);
+      setEntries(prev => {
+        const idx = prev.findIndex(e => e.date === formDate && (e.donor_id ?? null) === donorIdNum);
+        if (idx >= 0) { const copy = [...prev]; copy[idx] = row; return copy; }
+        return [...prev, row];
+      });
+      setFormQuantities({});
     } catch (err) { alert('Save failed: ' + err.message); }
   }
   async function deleteEntry(row) {
-    try { await api.blankets.remove(row); setEntries(prev => prev.filter(e => e.id !== row.id)); }
+    try { await api.salvage.removeEntry(row); setEntries(prev => prev.filter(e => e.id !== row.id)); }
     catch (err) { alert('Delete failed: ' + err.message); }
   }
   function exportCSV() {
-    const rows = entries.slice().sort((a, b) => a.date.localeCompare(b.date)).map(e => ({ Date: e.date, Blankets: e.blankets, 'Coats/Hoodies': e.coats, Pounds: e.pounds }));
-    downloadCSV('blanket_salvage.csv', rows);
+    const rows = entries.slice().sort((a, b) => a.date.localeCompare(b.date)).map(e => {
+      const row = { Date: e.date, Contact: donorLabel(e.donor_id) };
+      itemTypes.forEach(t => { row[t] = e.quantities[t] || 0; });
+      return row;
+    });
+    downloadCSV('salvage.csv', rows);
   }
 
   const weekStart = startOfWeek(weekAnchor);
@@ -820,19 +852,72 @@ function BlanketTab({ entries, setEntries }) {
   const monthYear = monthAnchor.getFullYear();
   const monthIdx = monthAnchor.getMonth();
   const monthEntries = entries.filter(e => { const d = parseISO(e.date); return d.getFullYear() === monthYear && d.getMonth() === monthIdx; });
-  const yearData = sumBlanketsByMonth(entries, yearSelected);
-  const allYearData = sumBlanketsByYear(entries);
+  const yearData = sumQuantitiesByMonth(entries, yearSelected, itemTypes);
+  const allYearData = sumQuantitiesByYear(entries, itemTypes);
+  const allTimeTotals = sumQuantitiesAllTime(entries, itemTypes);
+  const pieData = itemTypes.map(t => ({ name: t, value: allTimeTotals[t] || 0 })).filter(d => d.value > 0);
+
+  const contactTotals = {};
+  entries.forEach(e => {
+    const key = e.donor_id ?? 'null';
+    const total = Object.values(e.quantities || {}).reduce((s, v) => s + (Number(v) || 0), 0);
+    contactTotals[key] = (contactTotals[key] || 0) + total;
+  });
+  const topContacts = Object.entries(contactTotals)
+    .map(([k, v]) => ({ contact: k === 'null' ? 'Anonymous' : (donorMap[Number(k)]?.name || 'Unknown'), total: v }))
+    .sort((a, b) => b.total - a.total).slice(0, 10);
 
   return (
     <div className="flex flex-col gap-6">
       <div className="bg-white rounded-lg shadow p-4">
-        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Package size={20} /> Log Blanket Salvage</h2>
+        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Package size={20} /> Log Salvage</h2>
+
+        <div className="mb-3">
+          <div className="text-sm text-gray-600 mb-1">Item types:</div>
+          <div className="flex flex-wrap gap-2">
+            {itemTypes.map(t => (
+              <span key={t} className="flex items-center gap-1 bg-purple-50 border border-purple-200 text-purple-700 text-xs px-2 py-1 rounded-full">
+                {t}<button onClick={() => removeItemType(t)}><X size={12} /></button>
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 mb-4">
+          <input type="text" placeholder="Add item type (e.g. Pants, Shirts)" value={newItemName} onChange={e => setNewItemName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItemType(); } }} className="border rounded px-2 py-1 text-sm flex-1 max-w-xs" />
+          <button onClick={addItemType} className="bg-purple-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-1"><Plus size={14} />Add Type</button>
+        </div>
+
         <div className="flex flex-wrap items-end gap-4">
-          <div><label className="block text-sm text-gray-600 mb-1">Date</label><input type="date" value={formDate} onChange={e => setFormDate(e.target.value)} className="border rounded px-2 py-1" /></div>
-          <div><label className="block text-sm text-gray-600 mb-1">Blankets</label><input type="number" min="0" value={blanketsCount} onChange={e => setBlanketsCount(e.target.value)} className="border rounded px-2 py-1 w-24" /></div>
-          <div><label className="block text-sm text-gray-600 mb-1">Coats/Hoodies</label><input type="number" min="0" value={coatsCount} onChange={e => setCoatsCount(e.target.value)} className="border rounded px-2 py-1 w-24" /></div>
-          <div><label className="block text-sm text-gray-600 mb-1">Pounds</label><input type="number" min="0" step="0.1" value={poundsCount} onChange={e => setPoundsCount(e.target.value)} className="border rounded px-2 py-1 w-28" /></div>
-          <button onClick={addEntry} className="bg-purple-600 text-white px-4 py-1.5 rounded flex items-center gap-1"><Plus size={16} />Add Entry</button>
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Date</label>
+            <input type="date" value={formDate} onChange={e => setFormDate(e.target.value)} className="border rounded px-2 py-1" />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 mb-1 flex items-center gap-1"><Users size={14} /> Contact</label>
+            <div className="flex items-center gap-1">
+              <select value={formDonorId} onChange={e => setFormDonorId(e.target.value)} className="border rounded px-2 py-1 min-w-40">
+                <option value="">— Anonymous —</option>
+                {donors.map(d => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}{d.organization ? ` (${d.organization})` : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setShowDonorModal(true)}
+                title="Add new contact"
+                className="bg-cyan-600 text-white px-2 py-1.5 rounded flex items-center gap-1 text-sm"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+          </div>
+          {itemTypes.map(t => (
+            <div key={t}><label className="block text-sm text-gray-600 mb-1">{t}</label>
+              <input type="number" min="0" step="any" value={formQuantities[t] ?? ''} onChange={e => updateQuantity(t, e.target.value)} className="border rounded px-2 py-1 w-24" /></div>
+          ))}
+          <button onClick={saveEntry} className="bg-purple-600 text-white px-4 py-1.5 rounded flex items-center gap-1"><Plus size={16} />Add Entry</button>
           <button onClick={exportCSV} className="ml-auto bg-gray-100 px-3 py-1.5 rounded flex items-center gap-1 text-sm"><Download size={16} />Export CSV</button>
         </div>
       </div>
@@ -846,9 +931,9 @@ function BlanketTab({ entries, setEntries }) {
       </div>
 
       {view === 'week' && (
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-lg shadow p-4 overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="text-left border-b"><th className="py-1">Date</th><th>Blankets</th><th>Coats</th><th>Pounds</th><th></th></tr></thead>
+            <thead><tr className="text-left border-b"><th className="py-1">Date</th><th>Contact</th>{itemTypes.map(t => <th key={t}>{t}</th>)}<th></th></tr></thead>
             <tbody>
               {weekEntries.sort((a, b) => a.date.localeCompare(b.date)).map(e => {
                 const isEditing = editingId === e.id;
@@ -858,21 +943,30 @@ function BlanketTab({ entries, setEntries }) {
                       {isEditing ? <input type="date" value={editBuffer.date} onChange={ev => setEditBuffer({...editBuffer, date: ev.target.value})} className="border rounded px-1 py-0.5 text-sm" /> : e.date}
                     </td>
                     <td>
-                      {isEditing ? <input type="number" value={editBuffer.blankets} onChange={ev => setEditBuffer({...editBuffer, blankets: ev.target.value})} className="border rounded px-1 py-0.5 w-16 text-sm" /> : e.blankets}
+                      {isEditing ? (
+                        <select value={editBuffer.donor_id || ''} onChange={ev => setEditBuffer({...editBuffer, donor_id: ev.target.value ? Number(ev.target.value) : null})} className="border rounded px-1 py-0.5 text-sm">
+                          <option value="">Anonymous</option>
+                          {donors.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        </select>
+                      ) : donorLabel(e.donor_id)}
                     </td>
-                    <td>
-                      {isEditing ? <input type="number" value={editBuffer.coats} onChange={ev => setEditBuffer({...editBuffer, coats: ev.target.value})} className="border rounded px-1 py-0.5 w-16 text-sm" /> : e.coats}
-                    </td>
-                    <td>
-                      {isEditing ? <input type="number" step="0.1" value={editBuffer.pounds} onChange={ev => setEditBuffer({...editBuffer, pounds: ev.target.value})} className="border rounded px-1 py-0.5 w-20 text-sm" /> : e.pounds}
-                    </td>
+                    {itemTypes.map(t => (
+                      <td key={t}>
+                        {isEditing ? (
+                          <input type="number" step="any" value={editBuffer.quantities[t] || 0} onChange={ev => setEditBuffer({...editBuffer, quantities: {...(editBuffer.quantities||{}), [t]: ev.target.value}})} className="border rounded px-1 py-0.5 w-16 text-sm" />
+                        ) : (e.quantities[t] || 0)}
+                      </td>
+                    ))}
                     <td className="flex gap-2">
                       {isEditing ? (
                         <>
                           <button onClick={async () => {
                             try {
-                              await api.blankets.update(editBuffer);
-                              setEntries(prev => prev.map(x => x.id === e.id ? { ...editBuffer, id: e.id } : x));
+                              const cleanQuantities = {};
+                              itemTypes.forEach(t => { cleanQuantities[t] = Number(editBuffer.quantities[t]) || 0; });
+                              const rowToUpdate = { ...editBuffer, quantities: cleanQuantities };
+                              await api.salvage.upsertEntry(rowToUpdate);
+                              setEntries(prev => prev.map(x => x.id === e.id ? { ...rowToUpdate, id: e.id } : x));
                               setEditingId(null);
                             } catch (err) { alert('Update failed: ' + err.message); }
                           }}><Save size={14} className="text-green-500" /></button>
@@ -880,7 +974,71 @@ function BlanketTab({ entries, setEntries }) {
                         </>
                       ) : (
                         <>
-                          <button onClick={() => { setEditingId(e.id); setEditBuffer({...e}); }}><Edit2 size={14} className="text-blue-500" /></button>
+                          <button onClick={() => { setEditingId(e.id); setEditBuffer({...e, quantities: {...e.quantities}}); }}><Edit2 size={14} className="text-blue-500" /></button>
+                          <button onClick={() => deleteEntry(e)}><Trash2 size={14} className="text-red-500" /></button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {weekEntries.length === 0 && <tr><td colSpan={itemTypes.length + 3} className="text-center text-gray-400 py-3">No entries this week</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {view === 'month' && (
+        <div className="bg-white rounded-lg shadow p-4">
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={sumQuantitiesByDayInMonth(entries, monthYear, monthIdx, itemTypes)}>
+              <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="day" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
+              {itemTypes.map((t, i) => <Bar key={t} dataKey={t} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+            </BarChart>
+          </ResponsiveContainer>
+          <table className="w-full text-sm mt-4">
+            <thead><tr className="text-left border-b"><th className="py-1">Date</th><th>Contact</th>{itemTypes.map(t => <th key={t}>{t}</th>)}<th></th></tr></thead>
+            <tbody>
+              {monthEntries.sort((a, b) => a.date.localeCompare(b.date)).map(e => {
+                const isEditing = editingId === e.id;
+                return (
+                  <tr key={e.id} className="border-b">
+                    <td className="py-1.5">
+                      {isEditing ? <input type="date" value={editBuffer.date} onChange={ev => setEditBuffer({...editBuffer, date: ev.target.value})} className="border rounded px-1 py-0.5 text-sm" /> : e.date}
+                    </td>
+                    <td>
+                      {isEditing ? (
+                        <select value={editBuffer.donor_id || ''} onChange={ev => setEditBuffer({...editBuffer, donor_id: ev.target.value ? Number(ev.target.value) : null})} className="border rounded px-1 py-0.5 text-sm">
+                          <option value="">Anonymous</option>
+                          {donors.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        </select>
+                      ) : donorLabel(e.donor_id)}
+                    </td>
+                    {itemTypes.map(t => (
+                      <td key={t}>
+                        {isEditing ? (
+                          <input type="number" step="any" value={editBuffer.quantities[t] || 0} onChange={ev => setEditBuffer({...editBuffer, quantities: {...(editBuffer.quantities||{}), [t]: ev.target.value}})} className="border rounded px-1 py-0.5 w-16 text-sm" />
+                        ) : (e.quantities[t] || 0)}
+                      </td>
+                    ))}
+                    <td className="flex gap-2">
+                      {isEditing ? (
+                        <>
+                          <button onClick={async () => {
+                            try {
+                              const cleanQuantities = {};
+                              itemTypes.forEach(t => { cleanQuantities[t] = Number(editBuffer.quantities[t]) || 0; });
+                              const rowToUpdate = { ...editBuffer, quantities: cleanQuantities };
+                              await api.salvage.upsertEntry(rowToUpdate);
+                              setEntries(prev => prev.map(x => x.id === e.id ? { ...rowToUpdate, id: e.id } : x));
+                              setEditingId(null);
+                            } catch (err) { alert('Update failed: ' + err.message); }
+                          }}><Save size={14} className="text-green-500" /></button>
+                          <button onClick={() => setEditingId(null)}><X size={14} className="text-gray-500" /></button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => { setEditingId(e.id); setEditBuffer({...e, quantities: {...e.quantities}}); }}><Edit2 size={14} className="text-blue-500" /></button>
                           <button onClick={() => deleteEntry(e)}><Trash2 size={14} className="text-red-500" /></button>
                         </>
                       )}
@@ -893,43 +1051,61 @@ function BlanketTab({ entries, setEntries }) {
         </div>
       )}
 
-      {view === 'month' && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={sumByDayInMonth(entries, monthYear, monthIdx, ['blankets', 'coats'])}>
-              <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="day" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
-              <Bar dataKey="blankets" fill="#8b5cf6" /><Bar dataKey="coats" fill="#14b8a6" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
       {view === 'year' && (
         <div className="bg-white rounded-lg shadow p-4">
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={280}>
             <BarChart data={yearData}>
               <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
-              <Bar dataKey="blankets" fill="#8b5cf6" /><Bar dataKey="coats" fill="#14b8a6" />
+              {itemTypes.map((t, i) => <Bar key={t} dataKey={t} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
             </BarChart>
           </ResponsiveContainer>
         </div>
       )}
 
       {view === 'all' && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={allYearData}>
-              <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="year" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
-              <Bar dataKey="blankets" fill="#8b5cf6" /><Bar dataKey="coats" fill="#14b8a6" />
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-lg shadow p-4">
+            <h3 className="font-medium mb-2">Split by Item Type</h3>
+            {pieData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={90} label>
+                    {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip /><Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : <div className="text-gray-400 py-8 text-center text-sm">No salvage yet</div>}
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <h3 className="font-medium mb-2">By Year</h3>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={allYearData}>
+                <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="year" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
+                {itemTypes.map((t, i) => <Bar key={t} dataKey={t} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4 md:col-span-2">
+            <h3 className="font-medium mb-2">Top Contacts (by total items)</h3>
+            {topContacts.length > 0 ? (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={topContacts} layout="vertical" margin={{ left: 40 }}>
+                  <CartesianGrid strokeDasharray="3 3" /><XAxis type="number" /><YAxis type="category" dataKey="contact" width={120} /><Tooltip />
+                  <Bar dataKey="total" fill="#8b5cf6" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : <div className="text-gray-400 py-4 text-center text-sm">No contact data yet</div>}
+          </div>
         </div>
       )}
+
+      {showDonorModal && <DonorFormModal onClose={() => setShowDonorModal(false)} onSaved={handleDonorSaved} />}
     </div>
   );
 }
 
-// ---------------- Donations (with donor dropdown + Add Donor button) ----------------
+// ---------------- Donations ----------------
 function DonationTab({ entries, setEntries, itemTypes, setItemTypes, donors, setDonors }) {
   const [formDate, setFormDate] = useState(todayISO);
   const [formDonorId, setFormDonorId] = useState('');
@@ -1008,12 +1184,11 @@ function DonationTab({ entries, setEntries, itemTypes, setItemTypes, donors, set
   const monthYear = monthAnchor.getFullYear();
   const monthIdx = monthAnchor.getMonth();
   const monthEntries = entries.filter(e => { const d = parseISO(e.date); return d.getFullYear() === monthYear && d.getMonth() === monthIdx; });
-  const yearData = sumDonationsByMonth(entries, yearSelected, itemTypes);
-  const allYearData = sumDonationsByYear(entries, itemTypes);
-  const allTimeTotals = sumDonationsAllTime(entries, itemTypes);
+  const yearData = sumQuantitiesByMonth(entries, yearSelected, itemTypes);
+  const allYearData = sumQuantitiesByYear(entries, itemTypes);
+  const allTimeTotals = sumQuantitiesAllTime(entries, itemTypes);
   const pieData = itemTypes.map(t => ({ name: t, value: allTimeTotals[t] || 0 })).filter(d => d.value > 0);
 
-  // Top donors by total items
   const donorTotals = {};
   entries.forEach(e => {
     const key = e.donor_id ?? 'null';
@@ -1148,7 +1323,7 @@ function DonationTab({ entries, setEntries, itemTypes, setItemTypes, donors, set
       {view === 'month' && (
         <div className="bg-white rounded-lg shadow p-4">
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={sumDonationsByDayInMonth(entries, monthYear, monthIdx, itemTypes)}>
+            <BarChart data={sumQuantitiesByDayInMonth(entries, monthYear, monthIdx, itemTypes)}>
               <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="day" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
               {itemTypes.map((t, i) => <Bar key={t} dataKey={t} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
             </BarChart>
@@ -1631,12 +1806,13 @@ function ReceiptsTab({ receipts, setReceipts }) {
 export default function OlympiaNightshiftTracker() {
   const [tab, setTab] = useState('dashboard');
   const [outreach, setOutreach, loadingOutreach] = useCollection(api.outreach.load);
-  const [blankets, setBlankets, loadingBlankets] = useCollection(api.blankets.load);
+  const [salvage, setSalvage, loadingSalvage] = useCollection(api.salvage.load);
   const [closet, setCloset, loadingCloset] = useCollection(api.closet.load);
   const [receipts, setReceipts, loadingReceipts] = useCollection(api.receipts.load);
   const [donations, setDonations, loadingDonations] = useCollection(api.donations.load);
   const [donors, setDonors, loadingDonors] = useCollection(api.donors.load);
   const [donationItemTypes, setDonationItemTypes] = useState(['Blankets', 'Coats/Hoodies']);
+  const [salvageItemTypes, setSalvageItemTypes] = useState(['Blankets', 'Coats/Hoodies', 'Pounds']);
 
   useEffect(() => {
     if (loadingDonations || donations.length === 0) return;
@@ -1647,12 +1823,21 @@ export default function OlympiaNightshiftTracker() {
     });
   }, [loadingDonations, donations]);
 
-  const loading = loadingOutreach || loadingBlankets || loadingCloset || loadingReceipts || loadingDonations || loadingDonors;
+  useEffect(() => {
+    if (loadingSalvage || salvage.length === 0) return;
+    setSalvageItemTypes(prev => {
+      const merged = [...prev];
+      salvage.forEach(e => Object.keys(e.quantities || {}).forEach(t => { if (!merged.includes(t)) merged.push(t); }));
+      return merged;
+    });
+  }, [loadingSalvage, salvage]);
+
+  const loading = loadingOutreach || loadingSalvage || loadingCloset || loadingReceipts || loadingDonations || loadingDonors;
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'outreach', label: 'Outreach', icon: Calendar },
-    { id: 'blankets', label: 'Blankets', icon: Package },
+    { id: 'salvage', label: 'Salvage', icon: Package },
     { id: 'donations', label: 'Donations', icon: Gift },
     { id: 'contacts', label: 'Contacts', icon: Users },
     { id: 'closet', label: 'Closet', icon: Shirt },
@@ -1666,7 +1851,7 @@ export default function OlympiaNightshiftTracker() {
       <div className="min-h-screen bg-gray-100">
         <div className="bg-blue-900 text-white p-4">
           <h1 className="text-xl font-bold">Olympia Downtown Nightshift — Data Tracker</h1>
-          <p className="text-blue-200 text-sm">Outreach • Blankets • Donations • Contacts • Closet • Receipts</p>
+          <p className="text-blue-200 text-sm">Outreach • Salvage • Donations • Contacts • Closet • Receipts</p>
         </div>
         <div className="flex flex-wrap gap-2 p-3 bg-white border-b sticky top-0 z-10">
           {tabs.map(t => {
@@ -1679,9 +1864,9 @@ export default function OlympiaNightshiftTracker() {
           })}
         </div>
         <div className="p-4 max-w-6xl mx-auto">
-          {tab === 'dashboard' && <Dashboard outreach={outreach} blankets={blankets} closet={closet} receipts={receipts} donations={donations} donationItemTypes={donationItemTypes} donors={donors} />}
+          {tab === 'dashboard' && <Dashboard outreach={outreach} salvage={salvage} closet={closet} receipts={receipts} donations={donations} salvageItemTypes={salvageItemTypes} donationItemTypes={donationItemTypes} donors={donors} />}
           {tab === 'outreach' && <OutreachTab entries={outreach} setEntries={setOutreach} />}
-          {tab === 'blankets' && <BlanketTab entries={blankets} setEntries={setBlankets} />}
+          {tab === 'salvage' && <SalvageTab entries={salvage} setEntries={setSalvage} itemTypes={salvageItemTypes} setItemTypes={setSalvageItemTypes} donors={donors} setDonors={setDonors} />}
           {tab === 'donations' && <DonationTab entries={donations} setEntries={setDonations} itemTypes={donationItemTypes} setItemTypes={setDonationItemTypes} donors={donors} setDonors={setDonors} />}
           {tab === 'contacts' && <ContactsTab donors={donors} setDonors={setDonors} />}
           {tab === 'closet' && <ClosetTab entries={closet} setEntries={setCloset} />}

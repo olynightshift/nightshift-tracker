@@ -3,11 +3,12 @@ import { Users, Mail, Phone, MapPin, X } from 'lucide-react';
 import { api } from '../api';
 import { Modal } from './ui';
 import { useToast } from './toast-context';
+import { useUndo } from './undo-context';
 
 // ============================================================
 // Donor Contact Form Modal
 // ============================================================
-export function DonorFormModal({ donor, onClose, onSaved }) {
+export function DonorFormModal({ donor, setDonors, onClose, onSaved }) {
   const [name, setName] = useState(donor?.name || '');
   const [organization, setOrganization] = useState(donor?.organization || '');
   const [email, setEmail] = useState(donor?.email || '');
@@ -17,18 +18,32 @@ export function DonorFormModal({ donor, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const isEdit = !!donor?.id;
   const toast = useToast();
+  const { runAction } = useUndo();
 
   async function handleSave() {
     if (!name.trim()) { toast('Donor name is required.', 'error'); return; }
     setSaving(true);
-    try {
-      const row = { id: donor?.id, name: name.trim(), organization, email, phone, address, notes };
-      if (isEdit) { await api.donors.update(row); onSaved(row); }
-      else { const id = await api.donors.insert(row); onSaved({ ...row, id }); }
-      toast(isEdit ? 'Contact updated.' : 'Contact saved.', 'success');
-      onClose();
-    } catch (err) { toast('Save failed: ' + err.message, 'error'); }
-    finally { setSaving(false); }
+    const row = { id: donor?.id, name: name.trim(), organization, email, phone, address, notes };
+    let createdId = null;
+    const ok = await runAction({
+      label: isEdit ? 'Update contact' : 'Add contact',
+      doFn: async () => {
+        if (isEdit) { await api.donors.update(row); onSaved(row); }
+        else { createdId = await api.donors.insert(row); onSaved({ ...row, id: createdId }); }
+      },
+      undoFn: async () => {
+        if (!setDonors) return;
+        if (isEdit) {
+          await api.donors.update(donor);
+          setDonors(prev => prev.map(d => d.id === donor.id ? donor : d).sort((a, b) => a.name.localeCompare(b.name)));
+        } else if (createdId != null) {
+          await api.donors.remove({ id: createdId });
+          setDonors(prev => prev.filter(d => d.id !== createdId));
+        }
+      },
+    });
+    setSaving(false);
+    if (ok) { toast(isEdit ? 'Contact updated.' : 'Contact saved.', 'success'); onClose(); }
   }
 
   return (

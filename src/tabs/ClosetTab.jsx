@@ -4,6 +4,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { api } from '../api';
 import { toISO, addDays, startOfWeek, parseISO, MONTHS, downloadCSV, sumByDayInMonth } from '../lib/core';
 import { useToast } from '../components/toast-context';
+import { useUndo } from '../components/undo-context';
+import { useConfirm } from '../components/confirm-context';
 
 const todayISO = toISO(new Date());
 
@@ -20,16 +22,35 @@ export function ClosetTab({ entries, setEntries }) {
   const [editingId, setEditingId] = useState(null);
   const [editBuffer, setEditBuffer] = useState({});
   const toast = useToast();
+  const { runAction } = useUndo();
+  const confirm = useConfirm();
 
   async function addEntry() {
     if (!peopleCount) { toast('Enter the number of people served.', 'error'); return; }
     const row = { date: formDate, people: Number(peopleCount) || 0 };
-    try { const id = await api.closet.insert(row); setEntries(prev => [...prev, { ...row, id }]); setPeopleCount(''); toast('Closet day saved.', 'success'); }
-    catch (err) { toast('Save failed: ' + err.message, 'error'); }
+    let createdId = null;
+    const ok = await runAction({
+      label: 'Log closet day',
+      doFn: async () => {
+        createdId = await api.closet.insert(row);
+        setEntries(prev => [...prev, { ...row, id: createdId }]);
+      },
+      undoFn: async () => {
+        if (createdId == null) return;
+        await api.closet.remove({ ...row, id: createdId });
+        setEntries(prev => prev.filter(e => e.id !== createdId));
+      },
+    });
+    if (ok) { setPeopleCount(''); toast('Closet day saved.', 'success'); }
   }
   async function deleteEntry(row) {
-    try { await api.closet.remove(row); setEntries(prev => prev.filter(e => e.id !== row.id)); toast('Entry deleted.', 'success'); }
-    catch (err) { toast('Delete failed: ' + err.message, 'error'); }
+    if (!(await confirm(`Delete the closet entry for ${row.date}?`))) return;
+    const ok = await runAction({
+      label: 'Delete closet entry',
+      doFn: async () => { await api.closet.remove(row); setEntries(prev => prev.filter(e => e.id !== row.id)); },
+      undoFn: async () => { const id = await api.closet.insert(row); setEntries(prev => [...prev, { ...row, id }]); },
+    });
+    if (ok) toast('Entry deleted.', 'success');
   }
   function exportCSV() { downloadCSV('clothing_closet.csv', entries.slice().sort((a, b) => a.date.localeCompare(b.date)).map(e => ({ Date: e.date, 'People Served': e.people }))); }
 
@@ -78,8 +99,18 @@ export function ClosetTab({ entries, setEntries }) {
                       {isEditing ? (
                         <>
                           <button onClick={async () => {
-                            try { await api.closet.update(editBuffer); setEntries(prev => prev.map(x => x.id === e.id ? { ...editBuffer, id: e.id } : x)); setEditingId(null); toast('Entry updated.', 'success'); }
-                            catch (err) { toast('Update failed: ' + err.message, 'error'); }
+                            const ok = await runAction({
+                              label: 'Update closet entry',
+                              doFn: async () => {
+                                await api.closet.update(editBuffer);
+                                setEntries(prev => prev.map(x => x.id === e.id ? { ...editBuffer, id: e.id } : x));
+                              },
+                              undoFn: async () => {
+                                await api.closet.update(e);
+                                setEntries(prev => prev.map(x => x.id === e.id ? e : x));
+                              },
+                            });
+                            if (ok) { setEditingId(null); toast('Entry updated.', 'success'); }
                           }}><Save size={14} className="text-green-500" /></button>
                           <button onClick={() => setEditingId(null)}><X size={14} className="text-gray-500" /></button>
                         </>

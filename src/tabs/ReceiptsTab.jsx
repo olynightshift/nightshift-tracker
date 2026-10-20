@@ -6,6 +6,8 @@ import { RECEIPT_CATEGORIES, PIE_COLORS, downloadCSV, receiptTotal, sumReceiptsB
 import { buildItemCatalogue } from '../lib/receipts';
 import { ReceiptFormModal } from '../components/ReceiptFormModal';
 import { useToast } from '../components/toast-context';
+import { useUndo } from '../components/undo-context';
+import { useConfirm } from '../components/confirm-context';
 
 // ============================================================
 // Receipts Tab — Browse / Items / Reports with multi-field search
@@ -15,6 +17,8 @@ export function ReceiptsTab({ receipts, setReceipts }) {
   const [showModal, setShowModal] = useState(false);
   const [editingReceipt, setEditingReceipt] = useState(null);
   const toast = useToast();
+  const { runAction } = useUndo();
+  const confirm = useConfirm();
 
   // Search filters (shared across views)
   const [itemQ, setItemQ] = useState('');
@@ -80,9 +84,16 @@ export function ReceiptsTab({ receipts, setReceipts }) {
   }, [catalogue, itemQ, storeQ, category, dateFrom, dateTo, minCost, maxCost]);
 
   async function deleteReceipt(r) {
-    if (!window.confirm(`Delete receipt from ${r.store} on ${r.date}?`)) return;
-    try { await api.receipts.remove(r); setReceipts(prev => prev.filter(x => x.id !== r.id)); toast('Receipt deleted.', 'success'); }
-    catch (err) { toast('Delete failed: ' + err.message, 'error'); }
+    if (!(await confirm(`Delete receipt from ${r.store} on ${r.date}?`))) return;
+    const ok = await runAction({
+      label: 'Delete receipt',
+      doFn: async () => { await api.receipts.remove(r); setReceipts(prev => prev.filter(x => x.id !== r.id)); },
+      undoFn: async () => {
+        const id = await api.receipts.insert(r);
+        setReceipts(prev => [...prev, { ...r, id }]);
+      },
+    });
+    if (ok) toast('Receipt deleted.', 'success');
   }
 
   function handleSaved(row) {
@@ -383,7 +394,7 @@ export function ReceiptsTab({ receipts, setReceipts }) {
         </div>
       )}
 
-      {showModal && <ReceiptFormModal receipt={editingReceipt} onClose={() => setShowModal(false)} onSaved={handleSaved} />}
+      {showModal && <ReceiptFormModal receipt={editingReceipt} setReceipts={setReceipts} onClose={() => setShowModal(false)} onSaved={handleSaved} />}
     </div>
   );
 }

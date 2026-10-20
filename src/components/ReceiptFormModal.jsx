@@ -5,11 +5,12 @@ import { RECEIPT_CATEGORIES, todayISO } from '../lib/core';
 import { runOCR, parseReceiptText } from '../lib/receipts';
 import { Modal } from './ui';
 import { useToast } from './toast-context';
+import { useUndo } from './undo-context';
 
 // ============================================================
 // Receipt Form Modal (used for add + edit, supports OCR)
 // ============================================================
-export function ReceiptFormModal({ receipt, onClose, onSaved }) {
+export function ReceiptFormModal({ receipt, setReceipts, onClose, onSaved }) {
   const isEdit = !!receipt?.id;
   const [date, setDate] = useState(receipt?.date || todayISO);
   const [store, setStore] = useState(receipt?.store || '');
@@ -21,6 +22,7 @@ export function ReceiptFormModal({ receipt, onClose, onSaved }) {
   const [ocrText, setOcrText] = useState('');
   const [showOcrText, setShowOcrText] = useState(false);
   const toast = useToast();
+  const { runAction } = useUndo();
 
   function updateItem(i, field, value) { setItems(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: value } : it)); }
   function addItemRow() { setItems(prev => [...prev, { name: '', cost: '', category: 'Other' }]); }
@@ -62,19 +64,27 @@ export function ReceiptFormModal({ receipt, onClose, onSaved }) {
       .map(it => ({ name: (it.name || '').trim(), cost: Number(it.cost) || 0, category: it.category || 'Other' }));
     if (cleanItems.length === 0) { toast('Add at least one item.', 'error'); return; }
     setSaving(true);
-    try {
-      const row = { date, store: store.trim(), image, items: cleanItems };
-      if (isEdit) {
-        await api.receipts.update({ ...row, id: receipt.id });
-        onSaved({ ...row, id: receipt.id });
-      } else {
-        const id = await api.receipts.insert(row);
-        onSaved({ ...row, id });
-      }
-      toast(isEdit ? 'Receipt updated.' : 'Receipt saved.', 'success');
-      onClose();
-    } catch (err) { toast('Save failed: ' + err.message, 'error'); }
-    finally { setSaving(false); }
+    const row = { date, store: store.trim(), image, items: cleanItems };
+    let createdId = null;
+    const ok = await runAction({
+      label: isEdit ? 'Update receipt' : 'Save receipt',
+      doFn: async () => {
+        if (isEdit) { await api.receipts.update({ ...row, id: receipt.id }); onSaved({ ...row, id: receipt.id }); }
+        else { createdId = await api.receipts.insert(row); onSaved({ ...row, id: createdId }); }
+      },
+      undoFn: async () => {
+        if (!setReceipts) return;
+        if (isEdit) {
+          await api.receipts.update(receipt);
+          setReceipts(prev => prev.map(x => x.id === receipt.id ? receipt : x));
+        } else if (createdId != null) {
+          await api.receipts.remove({ id: createdId });
+          setReceipts(prev => prev.filter(x => x.id !== createdId));
+        }
+      },
+    });
+    setSaving(false);
+    if (ok) { toast(isEdit ? 'Receipt updated.' : 'Receipt saved.', 'success'); onClose(); }
   }
 
   const totalCost = items.reduce((s, it) => s + (Number(it.cost) || 0), 0);

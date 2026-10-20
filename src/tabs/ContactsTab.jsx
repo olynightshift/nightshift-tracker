@@ -4,6 +4,8 @@ import { api } from '../api';
 import { downloadCSV } from '../lib/core';
 import { DonorFormModal } from '../components/DonorFormModal';
 import { useToast } from '../components/toast-context';
+import { useUndo } from '../components/undo-context';
+import { useConfirm } from '../components/confirm-context';
 
 // ============================================================
 // Contacts
@@ -13,6 +15,8 @@ export function ContactsTab({ donors, setDonors }) {
   const [showModal, setShowModal] = useState(false);
   const [editingDonor, setEditingDonor] = useState(null);
   const toast = useToast();
+  const { runAction } = useUndo();
+  const confirm = useConfirm();
 
   function handleSaved(row) {
     setDonors(prev => {
@@ -22,9 +26,16 @@ export function ContactsTab({ donors, setDonors }) {
     });
   }
   async function handleDelete(d) {
-    if (!window.confirm(`Delete donor "${d.name}"?`)) return;
-    try { await api.donors.remove(d); setDonors(prev => prev.filter(x => x.id !== d.id)); toast('Contact deleted.', 'success'); }
-    catch (err) { toast('Delete failed: ' + err.message, 'error'); }
+    if (!(await confirm(`Delete donor "${d.name}"?`))) return;
+    const ok = await runAction({
+      label: 'Delete contact',
+      doFn: async () => { await api.donors.remove(d); setDonors(prev => prev.filter(x => x.id !== d.id)); },
+      undoFn: async () => {
+        const id = await api.donors.insert(d);
+        setDonors(prev => [...prev, { ...d, id }].sort((a, b) => a.name.localeCompare(b.name)));
+      },
+    });
+    if (ok) toast('Contact deleted.', 'success');
   }
   function exportCSV() {
     downloadCSV('donors.csv', donors.map(d => ({ Name: d.name, Organization: d.organization, Email: d.email, Phone: d.phone, Address: d.address, Notes: d.notes })));
@@ -67,7 +78,7 @@ export function ContactsTab({ donors, setDonors }) {
           </tbody>
         </table>
       </div>
-      {showModal && <DonorFormModal donor={editingDonor} onClose={() => setShowModal(false)} onSaved={handleSaved} />}
+      {showModal && <DonorFormModal donor={editingDonor} setDonors={setDonors} onClose={() => setShowModal(false)} onSaved={handleSaved} />}
     </div>
   );
 }

@@ -5,6 +5,8 @@ import { api } from './api';
 import { useCollection } from './hooks/useCollection';
 import { ToastProvider } from './components/ui';
 import { AuthGate } from './components/AuthGate';
+import { UndoProvider, UndoRedoControls } from './components/UndoProvider';
+import { ConfirmProvider } from './components/ConfirmProvider';
 import { Dashboard } from './tabs/Dashboard';
 import { OutreachTab } from './tabs/OutreachTab';
 import { SalvageTab } from './tabs/SalvageTab';
@@ -69,6 +71,8 @@ export default function OlympiaNightshiftTracker() {
 
   return (
     <ToastProvider>
+      <ConfirmProvider>
+      <UndoProvider>
       {supabase && !authChecked && (
         <div className="min-h-screen bg-gray-100 flex items-center justify-center text-gray-400 text-sm">Checking session…</div>
       )}
@@ -94,6 +98,9 @@ export default function OlympiaNightshiftTracker() {
               );
             })}
           </nav>
+          <div className="p-2 flex gap-1 border-t border-blue-900">
+            <UndoRedoControls />
+          </div>
           <div className="p-3 text-xs text-blue-300 border-t border-blue-900 flex items-center justify-between gap-1.5">
             <span className="flex items-center gap-1.5">
               {supabase ? (<><Database size={12} /> Connected</>) : (<><WifiOff size={12} /> Not configured</>)}
@@ -109,10 +116,13 @@ export default function OlympiaNightshiftTracker() {
         {/* Main column */}
         <div className="flex-1 min-w-0 flex flex-col">
           {/* Mobile header + nav */}
-          <div className="md:hidden bg-blue-950 text-white p-3">
-            <div className="flex items-center gap-2">
-              <Moon size={18} className="text-amber-300" />
-              <h1 className="font-bold">Olympia Downtown Nightshift</h1>
+          <div className="md:hidden bg-blue-950 text-white p-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Moon size={18} className="text-amber-300 shrink-0" />
+              <h1 className="font-bold truncate">Olympia Downtown Nightshift</h1>
+            </div>
+            <div className="flex gap-1 shrink-0">
+              <UndoRedoControls compact />
             </div>
           </div>
           <nav className="md:hidden flex gap-1 p-2 bg-white border-b overflow-x-auto">
@@ -141,6 +151,8 @@ export default function OlympiaNightshiftTracker() {
         </div>
       </div>
       )}
+      </UndoProvider>
+      </ConfirmProvider>
     </ToastProvider>
   );
 }

@@ -1,92 +1,95 @@
-import { useState } from 'react';
-import { Moon, Mail, Lock, Loader2, Send } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Moon, Loader2, Delete } from 'lucide-react';
 import { supabase } from '../lib/core';
 
+// One shared volunteer account lives behind the passcode. The code IS the
+// account password, so change it in Supabase (Authentication → Users) and
+// everyone uses the same 6 digits. Signed-in sessions persist on the device.
+const SHARED_EMAIL = 'crew@olynightshift.org';
+const LENGTH = 6;
+
 // ============================================================
-// AuthGate — shown when the user is not signed in
+// AuthGate — 6-digit passcode sign-in
 // ============================================================
 export function AuthGate() {
-  const [mode, setMode] = useState('magic'); // 'magic' | 'password'
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [digits, setDigits] = useState(Array(LENGTH).fill(''));
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState(null); // { type: 'info' | 'error', text }
+  const [error, setError] = useState(false);
+  const refs = useRef([]);
 
-  async function handleMagicLink(e) {
-    e.preventDefault();
-    if (!email.trim()) { setNotice({ type: 'error', text: 'Enter your email address.' }); return; }
-    setBusy(true); setNotice(null);
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: window.location.origin },
-    });
+  async function submit(code) {
+    setBusy(true); setError(false);
+    const { error: authError } = await supabase.auth.signInWithPassword({ email: SHARED_EMAIL, password: code });
     setBusy(false);
-    if (error) setNotice({ type: 'error', text: error.message });
-    else setNotice({ type: 'info', text: `Sign-in link sent to ${email.trim()} — check your inbox and click the link to enter.` });
+    if (authError) {
+      setError(true);
+      setDigits(Array(LENGTH).fill(''));
+      refs.current[0]?.focus();
+    }
+    // On success, onAuthStateChange in App.jsx flips the gate open.
   }
 
-  async function handlePassword(e) {
-    e.preventDefault();
-    if (!email.trim() || !password) { setNotice({ type: 'error', text: 'Enter your email and password.' }); return; }
-    setBusy(true); setNotice(null);
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    setBusy(false);
-    if (error) setNotice({ type: 'error', text: error.message });
-    // On success, onAuthStateChange in App.jsx flips the gate open.
+  function handleChange(i, raw) {
+    const c = raw.replace(/\D/g, '').slice(-1);
+    const next = [...digits];
+    next[i] = c;
+    setDigits(next);
+    setError(false);
+    if (c && i < LENGTH - 1) refs.current[i + 1]?.focus();
+    if (next.every(d => d !== '')) submit(next.join(''));
+  }
+
+  function handleKeyDown(i, e) {
+    if (e.key === 'Backspace' && !digits[i] && i > 0) {
+      const next = [...digits];
+      next[i - 1] = '';
+      setDigits(next);
+      refs.current[i - 1]?.focus();
+      e.preventDefault();
+    }
   }
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-sm p-6">
-        <div className="flex items-center gap-2 mb-1">
+      <div className="bg-white rounded-lg shadow-lg w-full max-w-xs p-6 text-center">
+        <div className="flex items-center justify-center gap-2 mb-1">
           <Moon size={20} className="text-amber-500" />
-          <h1 className="text-lg font-bold text-blue-950">Olympia Downtown Nightshift</h1>
+          <h1 className="text-lg font-bold text-blue-950">Olympia Nightshift</h1>
         </div>
-        <p className="text-sm text-gray-500 mb-5">Sign in to continue to the Data Tracker</p>
+        <p className="text-sm text-gray-500 mb-6">Enter the crew passcode</p>
 
-        <div className="flex gap-1 mb-4 bg-gray-100 rounded p-1">
-          {[
-            { k: 'magic', label: 'Email Link', icon: Send },
-            { k: 'password', label: 'Password', icon: Lock },
-          ].map(m => (
-            <button key={m.k} type="button" onClick={() => { setMode(m.k); setNotice(null); }}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded text-sm font-medium ${mode === m.k ? 'bg-white shadow text-blue-900' : 'text-gray-500'}`}>
-              <m.icon size={13} /> {m.label}
-            </button>
+        <div className={`flex justify-center gap-2 mb-3 ${error ? 'animate-pulse' : ''}`}>
+          {digits.map((d, i) => (
+            <input
+              key={i}
+              ref={el => { refs.current[i] = el; }}
+              type="password"
+              inputMode="numeric"
+              autoComplete={i === 0 ? 'one-time-code' : 'off'}
+              maxLength={1}
+              value={d}
+              disabled={busy}
+              onChange={e => handleChange(i, e.target.value)}
+              onKeyDown={e => handleKeyDown(i, e)}
+              autoFocus={i === 0}
+              className={`w-10 h-12 border-2 rounded-lg text-center text-xl font-bold focus:outline-none transition-colors
+                ${error ? 'border-red-400 bg-red-50' : d ? 'border-blue-600' : 'border-gray-300'}
+                focus:border-blue-600 disabled:opacity-50`}
+            />
           ))}
         </div>
 
-        <form onSubmit={mode === 'magic' ? handleMagicLink : handlePassword} className="flex flex-col gap-3">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1 flex items-center gap-1"><Mail size={11} /> Email</label>
-            <input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)}
-              className="border rounded px-2 py-1.5 w-full text-sm" placeholder="you@example.org" autoFocus />
-          </div>
-          {mode === 'password' && (
-            <div>
-              <label className="block text-xs text-gray-500 mb-1 flex items-center gap-1"><Lock size={11} /> Password</label>
-              <input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)}
-                className="border rounded px-2 py-1.5 w-full text-sm" placeholder="••••••••" />
-            </div>
-          )}
-          <button type="submit" disabled={busy}
-            className="bg-blue-700 text-white rounded py-2 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50">
-            {busy && <Loader2 size={14} className="animate-spin" />}
-            {mode === 'magic' ? 'Send Sign-In Link' : 'Sign In'}
-          </button>
-        </form>
+        {busy && <div className="text-sm text-gray-400 flex items-center justify-center gap-1.5 mb-2"><Loader2 size={13} className="animate-spin" /> Checking…</div>}
+        {error && <div className="text-sm text-red-600 mb-2">Incorrect code — try again.</div>}
 
-        {notice && (
-          <div className={`mt-4 text-sm border rounded p-2.5 ${notice.type === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
-            {notice.text}
-          </div>
-        )}
+        <button
+          onClick={() => { const next = Array(LENGTH).fill(''); setDigits(next); setError(false); refs.current[0]?.focus(); }}
+          className="text-xs text-gray-400 hover:text-gray-600 inline-flex items-center gap-1 mb-4"
+        >
+          <Delete size={11} /> Clear
+        </button>
 
-        <p className="mt-5 text-xs text-gray-400 text-center">
-          {mode === 'magic'
-            ? 'No password needed — we email you a link.'
-            : 'Ask your coordinator for an account.'}
-        </p>
+        <p className="text-xs text-gray-400">This device stays signed in — no code needed next time.</p>
       </div>
     </div>
   );

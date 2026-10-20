@@ -4,6 +4,8 @@ import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Toolti
 import { api } from '../api';
 import { toISO, addDays, startOfWeek, MONTHS, DAYS, downloadCSV, groupOutreachByMonth, groupOutreachByYear } from '../lib/core';
 import { useToast } from '../components/toast-context';
+import { useUndo } from '../components/undo-context';
+import { useConfirm } from '../components/confirm-context';
 
 const todayISO = toISO(new Date());
 
@@ -22,9 +24,17 @@ export function OutreachTab({ entries, setEntries }) {
   const [editBuffer, setEditBuffer] = useState({});
   const formRef = useRef(null);
   const toast = useToast();
+  const { runAction } = useUndo();
+  const confirm = useConfirm();
 
   const entryMap = {};
   entries.forEach(e => { entryMap[e.date] = e; });
+
+  function upsertLocal(list, row) {
+    const exists = list.find(e => e.date === row.date);
+    if (exists) return list.map(e => e.date === row.date ? row : e);
+    return [...list, row];
+  }
 
   function loadDay(dateISO) {
     setFormDate(dateISO);
@@ -34,27 +44,32 @@ export function OutreachTab({ entries, setEntries }) {
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   async function saveEntry() {
+    const prev = entryMap[formDate];
     const row = { id: formDate, date: formDate, nightshift: formNightshift, coffee: formCoffee };
-    if (!formNightshift && !formCoffee) {
-      if (entryMap[formDate]) {
-        try { await api.outreach.remove(row); setEntries(prev => prev.filter(e => e.date !== formDate)); toast('Entry removed.', 'success'); }
-        catch (err) { toast('Delete failed: ' + err.message, 'error'); }
-      }
-      return;
-    }
-    try {
-      await api.outreach.upsert(row);
-      setEntries(prev => {
-        const exists = prev.find(e => e.date === formDate);
-        if (exists) return prev.map(e => e.date === formDate ? row : e);
-        return [...prev, row];
-      });
-      toast('Outreach day saved.', 'success');
-    } catch (err) { toast('Save failed: ' + err.message, 'error'); }
+    const isRemove = !formNightshift && !formCoffee;
+    if (isRemove && !prev) return;
+    const ok = await runAction({
+      label: isRemove ? 'Remove outreach day' : 'Save outreach day',
+      doFn: async () => {
+        if (isRemove) { await api.outreach.remove(row); setEntries(list => list.filter(e => e.date !== formDate)); }
+        else { await api.outreach.upsert(row); setEntries(list => upsertLocal(list, row)); }
+      },
+      undoFn: async () => {
+        if (prev) { await api.outreach.upsert(prev); setEntries(list => upsertLocal(list, prev)); }
+        else { await api.outreach.remove({ date: formDate }); setEntries(list => list.filter(e => e.date !== formDate)); }
+      },
+    });
+    if (ok) toast(isRemove ? 'Entry removed.' : 'Outreach day saved.', 'success');
   }
   async function deleteEntry(date) {
-    try { await api.outreach.remove({ date }); setEntries(prev => prev.filter(e => e.date !== date)); toast('Entry deleted.', 'success'); }
-    catch (err) { toast('Delete failed: ' + err.message, 'error'); }
+    if (!(await confirm(`Delete the outreach entry for ${date}?`))) return;
+    const prev = entryMap[date];
+    const ok = await runAction({
+      label: 'Delete outreach day',
+      doFn: async () => { await api.outreach.remove({ date }); setEntries(list => list.filter(e => e.date !== date)); },
+      undoFn: async () => { if (prev) { await api.outreach.upsert(prev); setEntries(list => upsertLocal(list, prev)); } },
+    });
+    if (ok) toast('Entry deleted.', 'success');
   }
   function exportCSV() {
     const rows = entries.slice().sort((a, b) => a.date.localeCompare(b.date)).map(e => ({ Date: e.date, Nightshift: e.nightshift ? 'Yes' : 'No', Coffee: e.coffee ? 'Yes' : 'No' }));
@@ -115,21 +130,20 @@ export function OutreachTab({ entries, setEntries }) {
                       {isEditing ? (
                         <>
                           <button onClick={async () => {
-                            try {
-                              if (!editBuffer.nightshift && !editBuffer.coffee) {
-                                await api.outreach.remove({ date: iso });
-                                setEntries(prev => prev.filter(x => x.date !== iso));
-                              } else {
-                                await api.outreach.upsert(editBuffer);
-                                setEntries(prev => {
-                                  const exists = prev.find(x => x.date === iso);
-                                  if (exists) return prev.map(x => x.date === iso ? editBuffer : x);
-                                  return [...prev, editBuffer];
-                                });
-                              }
-                              setEditingId(null);
-                              toast('Entry updated.', 'success');
-                            } catch (err) { toast('Update failed: ' + err.message, 'error'); }
+                            const prev = entryMap[iso];
+                            const isRemove = !editBuffer.nightshift && !editBuffer.coffee;
+                            const ok = await runAction({
+                              label: 'Update outreach day',
+                              doFn: async () => {
+                                if (isRemove) { await api.outreach.remove({ date: iso }); setEntries(list => list.filter(x => x.date !== iso)); }
+                                else { await api.outreach.upsert(editBuffer); setEntries(list => upsertLocal(list, editBuffer)); }
+                              },
+                              undoFn: async () => {
+                                if (prev) { await api.outreach.upsert(prev); setEntries(list => upsertLocal(list, prev)); }
+                                else { await api.outreach.remove({ date: iso }); setEntries(list => list.filter(x => x.date !== iso)); }
+                              },
+                            });
+                            if (ok) { setEditingId(null); toast('Entry updated.', 'success'); }
                           }}><Save size={14} className="text-green-500" /></button>
                           <button onClick={() => setEditingId(null)}><X size={14} className="text-gray-500" /></button>
                         </>

@@ -4,6 +4,8 @@ import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Toolti
 import { toISO, addDays, startOfWeek, parseISO, MONTHS, downloadCSV, sumQuantitiesByDayInMonth, sumQuantitiesByMonth, sumQuantitiesByYear, sumQuantitiesAllTime, PIE_COLORS } from '../lib/core';
 import { DonorFormModal } from '../components/DonorFormModal';
 import { useToast } from '../components/toast-context';
+import { useUndo } from '../components/undo-context';
+import { useConfirm } from '../components/confirm-context';
 
 const todayISO = toISO(new Date());
 
@@ -24,6 +26,8 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
   const [editingId, setEditingId] = useState(null);
   const [editBuffer, setEditBuffer] = useState({});
   const toast = useToast();
+  const { runAction } = useUndo();
+  const confirm = useConfirm();
 
   const donorMap = {}; donors.forEach(d => { donorMap[d.id] = d; });
   const donorLabel = id => (id && donorMap[id]) ? donorMap[id].name : 'Anonymous';
@@ -56,20 +60,31 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
     Object.entries(quantities).forEach(([k, v]) => { if (v > 0) merged[k] = (merged[k] || 0) + v; });
     const key = `${formDate}|${donorIdNum ?? 'null'}`;
     const row = { id: key, date: formDate, donor_id: donorIdNum, quantities: merged };
-    try {
-      await config.api.upsertEntry(row);
-      setEntries(prev => {
-        const idx = prev.findIndex(e => e.date === formDate && (e.donor_id ?? null) === donorIdNum);
-        if (idx >= 0) { const copy = [...prev]; copy[idx] = row; return copy; }
-        return [...prev, row];
-      });
-      setFormQuantities({});
-      toast(`${config.noun} entry saved.`, 'success');
-    } catch (err) { toast('Save failed: ' + err.message, 'error'); }
+    const ok = await runAction({
+      label: `Save ${config.noun.toLowerCase()} entry`,
+      doFn: async () => {
+        await config.api.upsertEntry(row);
+        setEntries(prev => {
+          const idx = prev.findIndex(e => e.date === formDate && (e.donor_id ?? null) === donorIdNum);
+          if (idx >= 0) { const copy = [...prev]; copy[idx] = row; return copy; }
+          return [...prev, row];
+        });
+      },
+      undoFn: async () => {
+        if (existing) { await config.api.upsertEntry(existing); setEntries(prev => prev.map(e => e.id === key ? existing : e)); }
+        else { await config.api.removeEntry(row); setEntries(prev => prev.filter(e => e.id !== key)); }
+      },
+    });
+    if (ok) { setFormQuantities({}); toast(`${config.noun} entry saved.`, 'success'); }
   }
   async function deleteEntry(row) {
-    try { await config.api.removeEntry(row); setEntries(prev => prev.filter(e => e.id !== row.id)); toast('Entry deleted.', 'success'); }
-    catch (err) { toast('Delete failed: ' + err.message, 'error'); }
+    if (!(await confirm(`Delete this ${config.noun.toLowerCase()} entry from ${row.date}?`))) return;
+    const ok = await runAction({
+      label: `Delete ${config.noun.toLowerCase()} entry`,
+      doFn: async () => { await config.api.removeEntry(row); setEntries(prev => prev.filter(e => e.id !== row.id)); },
+      undoFn: async () => { await config.api.upsertEntry(row); setEntries(prev => [...prev, row]); },
+    });
+    if (ok) toast('Entry deleted.', 'success');
   }
   function exportCSV() {
     const rows = entries.slice().sort((a, b) => a.date.localeCompare(b.date)).map(e => {
@@ -127,15 +142,21 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
           {isEditing ? (
             <>
               <button onClick={async () => {
-                try {
-                  const cleanQuantities = {};
-                  itemTypes.forEach(t => { cleanQuantities[t] = Number(editBuffer.quantities[t]) || 0; });
-                  const rowToUpdate = { ...editBuffer, quantities: cleanQuantities };
-                  await config.api.upsertEntry(rowToUpdate);
-                  setEntries(prev => prev.map(x => x.id === e.id ? { ...rowToUpdate, id: e.id } : x));
-                  setEditingId(null);
-                  toast('Entry updated.', 'success');
-                } catch (err) { toast('Update failed: ' + err.message, 'error'); }
+                const cleanQuantities = {};
+                itemTypes.forEach(t => { cleanQuantities[t] = Number(editBuffer.quantities[t]) || 0; });
+                const rowToUpdate = { ...editBuffer, quantities: cleanQuantities };
+                const ok = await runAction({
+                  label: `Update ${config.noun.toLowerCase()} entry`,
+                  doFn: async () => {
+                    await config.api.upsertEntry(rowToUpdate);
+                    setEntries(prev => prev.map(x => x.id === e.id ? { ...rowToUpdate, id: e.id } : x));
+                  },
+                  undoFn: async () => {
+                    await config.api.upsertEntry(e);
+                    setEntries(prev => prev.map(x => x.id === e.id ? e : x));
+                  },
+                });
+                if (ok) { setEditingId(null); toast('Entry updated.', 'success'); }
               }}><Save size={14} className="text-green-500" /></button>
               <button onClick={() => setEditingId(null)}><X size={14} className="text-gray-500" /></button>
             </>
@@ -290,7 +311,7 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
         </div>
       )}
 
-      {showDonorModal && <DonorFormModal onClose={() => setShowDonorModal(false)} onSaved={handleDonorSaved} />}
+      {showDonorModal && <DonorFormModal setDonors={setDonors} onClose={() => setShowDonorModal(false)} onSaved={handleDonorSaved} />}
     </div>
   );
 }

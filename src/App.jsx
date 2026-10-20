@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Home, Calendar, Package, Gift, Users, Shirt, Receipt as ReceiptIcon, Moon, Database, WifiOff } from 'lucide-react';
+import { Home, Calendar, Package, Gift, Users, Shirt, Receipt as ReceiptIcon, Moon, Database, WifiOff, LogOut } from 'lucide-react';
 import { supabase } from './lib/core';
 import { api } from './api';
 import { useCollection } from './hooks/useCollection';
 import { ToastProvider } from './components/ui';
+import { AuthGate } from './components/AuthGate';
 import { Dashboard } from './tabs/Dashboard';
 import { OutreachTab } from './tabs/OutreachTab';
 import { SalvageTab } from './tabs/SalvageTab';
@@ -15,6 +16,8 @@ import { ReceiptsTab } from './tabs/ReceiptsTab';
 // ================== ROOT ==================
 export default function OlympiaNightshiftTracker() {
   const [tab, setTab] = useState('dashboard');
+  const [session, setSession] = useState(null);
+  const [authChecked, setAuthChecked] = useState(!supabase);
   const [outreach, setOutreach, loadingOutreach] = useCollection(api.outreach.load);
   const [salvage, setSalvage, loadingSalvage] = useCollection(api.salvage.load);
   const [closet, setCloset, loadingCloset] = useCollection(api.closet.load);
@@ -23,6 +26,16 @@ export default function OlympiaNightshiftTracker() {
   const [donors, setDonors, loadingDonors] = useCollection(api.donors.load);
   const [donationItemTypes, setDonationItemTypes] = useState(['Blankets', 'Coats/Hoodies']);
   const [salvageItemTypes, setSalvageItemTypes] = useState(['Blankets', 'Coats/Hoodies', 'Pounds']);
+
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthChecked(true);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (loadingDonations || donations.length === 0) return;
@@ -56,6 +69,11 @@ export default function OlympiaNightshiftTracker() {
 
   return (
     <ToastProvider>
+      {supabase && !authChecked && (
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center text-gray-400 text-sm">Checking session…</div>
+      )}
+      {supabase && authChecked && !session && <AuthGate />}
+      {(!supabase || session) && (
       <div className="min-h-screen bg-gray-100 flex">
         {/* Desktop sidebar */}
         <aside className="hidden md:flex flex-col w-60 shrink-0 bg-blue-950 text-white min-h-screen sticky top-0 h-screen">
@@ -76,8 +94,15 @@ export default function OlympiaNightshiftTracker() {
               );
             })}
           </nav>
-          <div className="p-3 text-xs text-blue-300 border-t border-blue-900 flex items-center gap-1.5">
-            {supabase ? (<><Database size={12} /> Connected to Supabase</>) : (<><WifiOff size={12} /> Supabase not configured</>)}
+          <div className="p-3 text-xs text-blue-300 border-t border-blue-900 flex items-center justify-between gap-1.5">
+            <span className="flex items-center gap-1.5">
+              {supabase ? (<><Database size={12} /> Connected</>) : (<><WifiOff size={12} /> Not configured</>)}
+            </span>
+            {session && (
+              <button onClick={() => supabase.auth.signOut()} title="Sign out" className="flex items-center gap-1 hover:text-white">
+                <LogOut size={12} /> Sign out
+              </button>
+            )}
           </div>
         </aside>
 
@@ -115,6 +140,7 @@ export default function OlympiaNightshiftTracker() {
           </main>
         </div>
       </div>
+      )}
     </ToastProvider>
   );
 }

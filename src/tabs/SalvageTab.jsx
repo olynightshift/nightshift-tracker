@@ -11,6 +11,7 @@ const config = {
   btnCls: 'bg-purple-600',
   chipCls: 'bg-purple-50 border-purple-200 text-purple-700',
   topBarColor: '#8b5cf6',
+  weightType: 'Pounds',
   api: api.salvage,
 };
 

@@ -85,15 +85,23 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
   const monthYear = monthAnchor.getFullYear();
   const monthIdx = monthAnchor.getMonth();
   const monthEntries = entries.filter(e => { const d = parseISO(e.date); return d.getFullYear() === monthYear && d.getMonth() === monthIdx; });
-  const yearData = sumQuantitiesByMonth(entries, yearSelected, itemTypes);
-  const allYearData = sumQuantitiesByYear(entries, itemTypes);
-  const allTimeTotals = sumQuantitiesAllTime(entries, itemTypes);
-  const pieData = itemTypes.map(t => ({ name: t, value: allTimeTotals[t] || 0 })).filter(d => d.value > 0);
+
+  // A "weight" item type (e.g. Pounds) is a measurement, not a counted item:
+  // keep it in the tables, but exclude it from item charts and totals so it
+  // doesn't dwarf the actual item counts.
+  const weightType = config.weightType ? itemTypes.find(t => t.toLowerCase() === config.weightType.toLowerCase()) : undefined;
+  const chartItemTypes = weightType ? itemTypes.filter(t => t !== weightType) : itemTypes;
+  const totalWeight = weightType ? entries.reduce((s, e) => s + (Number(e.quantities[weightType]) || 0), 0) : 0;
+
+  const yearData = sumQuantitiesByMonth(entries, yearSelected, chartItemTypes);
+  const allYearData = sumQuantitiesByYear(entries, chartItemTypes);
+  const allTimeTotals = sumQuantitiesAllTime(entries, chartItemTypes);
+  const pieData = chartItemTypes.map(t => ({ name: t, value: allTimeTotals[t] || 0 })).filter(d => d.value > 0);
 
   const contactTotals = {};
   entries.forEach(e => {
     const key = e.donor_id ?? 'null';
-    const total = Object.values(e.quantities || {}).reduce((s, v) => s + (Number(v) || 0), 0);
+    const total = Object.entries(e.quantities || {}).reduce((s, [t, v]) => s + (weightType && t === weightType ? 0 : (Number(v) || 0)), 0);
     contactTotals[key] = (contactTotals[key] || 0) + total;
   });
   const topContacts = Object.entries(contactTotals)
@@ -216,9 +224,9 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
             <button onClick={() => setMonthAnchor(new Date(monthYear, monthIdx + 1, 1))}><ChevronRight /></button>
           </div>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={sumQuantitiesByDayInMonth(entries, monthYear, monthIdx, itemTypes)}>
+            <BarChart data={sumQuantitiesByDayInMonth(entries, monthYear, monthIdx, chartItemTypes)}>
               <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="day" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
-              {itemTypes.map((t, i) => <Bar key={t} dataKey={t} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+              {chartItemTypes.map((t, i) => <Bar key={t} dataKey={t} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
             </BarChart>
           </ResponsiveContainer>
           <table className="w-full text-sm mt-4">
@@ -237,13 +245,22 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
           </div>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={yearData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
-              {itemTypes.map((t, i) => <Bar key={t} dataKey={t} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}</BarChart>
+              {chartItemTypes.map((t, i) => <Bar key={t} dataKey={t} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}</BarChart>
           </ResponsiveContainer>
         </div>
       )}
 
       {view === 'all' && (
         <div className="grid md:grid-cols-2 gap-4">
+          {weightType && (
+            <div className="bg-white rounded-lg shadow p-4 md:col-span-2 flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <div className="text-xs text-gray-500 uppercase tracking-wide">Total {weightType} collected (all time)</div>
+                <div className="text-2xl font-bold">{totalWeight.toLocaleString()} <span className="text-sm font-normal text-gray-500">lbs</span></div>
+              </div>
+              <div className="text-xs text-gray-400">Weight is tracked separately from item counts in all charts.</div>
+            </div>
+          )}
           <div className="bg-white rounded-lg shadow p-4">
             <h3 className="font-medium mb-2">Split by Item Type</h3>
             {pieData.length > 0 ? (
@@ -257,7 +274,7 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
             <h3 className="font-medium mb-2">By Year</h3>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={allYearData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="year" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
-                {itemTypes.map((t, i) => <Bar key={t} dataKey={t} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}</BarChart>
+                {chartItemTypes.map((t, i) => <Bar key={t} dataKey={t} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}</BarChart>
             </ResponsiveContainer>
           </div>
           <div className="bg-white rounded-lg shadow p-4 md:col-span-2">

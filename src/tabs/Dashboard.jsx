@@ -7,9 +7,13 @@ import { groupOutreachByMonth, receiptTotal, sumQuantitiesAllTime } from '../lib
 // ============================================================
 export function Dashboard({ outreach, salvage, closet, receipts, donations, salvageItemTypes, donors }) {
   const currentYear = new Date().getFullYear();
+  // Pounds is a weight measurement, not a counted item — track it separately.
+  const weightType = salvageItemTypes.find(t => t.toLowerCase() === 'pounds');
+  const itemTypes = weightType ? salvageItemTypes.filter(t => t !== weightType) : salvageItemTypes;
   const totalNightshift = outreach.filter(e => e.nightshift).length;
   const totalCoffee = outreach.filter(e => e.coffee).length;
-  const totalSalvageItems = Object.values(sumQuantitiesAllTime(salvage, salvageItemTypes)).reduce((s, v) => s + v, 0);
+  const totalSalvageItems = Object.values(sumQuantitiesAllTime(salvage, itemTypes)).reduce((s, v) => s + v, 0);
+  const totalPounds = weightType ? salvage.reduce((s, e) => s + (Number(e.quantities[weightType]) || 0), 0) : 0;
   const totalPeople = closet.reduce((s, e) => s + e.people, 0);
   const totalSpent = receipts.reduce((s, r) => s + receiptTotal(r), 0);
   const totalDonatedItems = donations.reduce((s, e) => s + Object.values(e.quantities).reduce((ss, v) => ss + (Number(v) || 0), 0), 0);
@@ -17,6 +21,7 @@ export function Dashboard({ outreach, salvage, closet, receipts, donations, salv
     { label: 'Nightshift Days', value: totalNightshift, color: 'bg-blue-500' },
     { label: 'Coffee Days', value: totalCoffee, color: 'bg-amber-500' },
     { label: 'Salvage Items', value: totalSalvageItems, color: 'bg-purple-500' },
+    ...(weightType ? [{ label: 'Pounds Collected', value: totalPounds.toLocaleString(), color: 'bg-orange-500' }] : []),
     { label: 'People Served', value: totalPeople, color: 'bg-pink-500' },
     { label: 'Items Donated', value: totalDonatedItems, color: 'bg-emerald-500' },
     { label: 'Donors', value: donors.length, color: 'bg-cyan-500' },
@@ -51,7 +56,7 @@ export function Dashboard({ outreach, salvage, closet, receipts, donations, salv
     ...closet.map(e => ({ date: e.date, dotCls: 'bg-pink-500', text: `${e.people} people served at the closet` })),
     ...salvage.map(e => ({
       date: e.date, dotCls: 'bg-purple-500',
-      text: `${Object.values(e.quantities || {}).reduce((s, v) => s + (Number(v) || 0), 0)} salvage items from ${donorName(e.donor_id)}`,
+      text: `${Object.entries(e.quantities || {}).reduce((s, [t, v]) => s + (weightType && t === weightType ? 0 : (Number(v) || 0)), 0)} salvage items from ${donorName(e.donor_id)}`,
     })),
     ...donations.map(e => ({
       date: e.date, dotCls: 'bg-emerald-500',

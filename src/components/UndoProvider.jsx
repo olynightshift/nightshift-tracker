@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Undo2, Redo2 } from 'lucide-react';
 import { useToast } from './toast-context';
-import { UndoCtx } from './undo-context';
+import { UndoCtx, useUndo } from './undo-context';
 
 // ============================================================
 // UndoProvider — global action history.

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/core';
 import { useToast } from '../components/toast-context';
 
@@ -6,6 +6,21 @@ export function useCollection(loader) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
+
+  const load = useCallback(async () => {
+    if (!supabase) { setLoading(false); return; }
+    try {
+      const data = await loader();
+      setRows(data);
+    } catch (err) {
+      console.error('Load error:', err.message || err);
+      toast('Load failed: ' + (err.message || err), 'error');
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     let active = true;
     if (!supabase) { setLoading(false); return; }
@@ -23,5 +38,6 @@ export function useCollection(loader) {
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return [rows, setRows, loading];
+
+  return [rows, setRows, loading, load];
 }

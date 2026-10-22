@@ -145,15 +145,33 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
                 const cleanQuantities = {};
                 itemTypes.forEach(t => { cleanQuantities[t] = Number(editBuffer.quantities[t]) || 0; });
                 const rowToUpdate = { ...editBuffer, quantities: cleanQuantities };
+                // If the donor or date moved, the old entry's rows (keyed by
+                // date+donor) must be deleted too — otherwise the DB keeps
+                // both the old and new attribution after refresh.
+                const moved = (rowToUpdate.date !== e.date) || ((rowToUpdate.donor_id ?? null) !== (e.donor_id ?? null));
+                const newKey = `${rowToUpdate.date}|${rowToUpdate.donor_id ?? 'null'}`;
                 const ok = await runAction({
                   label: `Update ${config.noun.toLowerCase()} entry`,
                   doFn: async () => {
                     await config.api.upsertEntry(rowToUpdate);
-                    setEntries(prev => prev.map(x => x.id === e.id ? { ...rowToUpdate, id: e.id } : x));
+                    if (moved) await config.api.removeEntry(e);
+                    setEntries(prev => {
+                      const rest = moved ? prev.filter(x => x.id !== e.id) : prev;
+                      const next = { ...rowToUpdate, id: newKey };
+                      const idx = rest.findIndex(x => x.id === newKey);
+                      if (idx >= 0) { const copy = [...rest]; copy[idx] = next; return copy; }
+                      return [...rest, next];
+                    });
                   },
                   undoFn: async () => {
+                    if (moved) await config.api.removeEntry({ ...rowToUpdate, id: newKey });
                     await config.api.upsertEntry(e);
-                    setEntries(prev => prev.map(x => x.id === e.id ? e : x));
+                    setEntries(prev => {
+                      const rest = prev.filter(x => x.id !== newKey);
+                      const idx = rest.findIndex(x => x.id === e.id);
+                      if (idx >= 0) { const copy = [...rest]; copy[idx] = e; return copy; }
+                      return [...rest, e];
+                    });
                   },
                 });
                 if (ok) { setEditingId(null); toast('Entry updated.', 'success'); }

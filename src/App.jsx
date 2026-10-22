@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Home, Calendar, Package, Gift, Users, Shirt, Receipt as ReceiptIcon, Moon, Database, WifiOff, LogOut } from 'lucide-react';
+import { Home, Calendar, Package, Gift, Users, Shirt, Receipt as ReceiptIcon, Moon, Database, WifiOff, LogOut, RefreshCw } from 'lucide-react';
 import { supabase } from './lib/core';
 import { api } from './api';
 import { useCollection } from './hooks/useCollection';
@@ -53,14 +53,29 @@ export default function OlympiaNightshiftTracker() {
 // run with an authenticated client (required once RLS is enabled).
 function MainApp({ session }) {
   const [tab, setTab] = useState('dashboard');
-  const [outreach, setOutreach, loadingOutreach] = useCollection(api.outreach.load);
-  const [salvage, setSalvage, loadingSalvage] = useCollection(api.salvage.load);
-  const [closet, setCloset, loadingCloset] = useCollection(api.closet.load);
-  const [receipts, setReceipts, loadingReceipts] = useCollection(api.receipts.load);
-  const [donations, setDonations, loadingDonations] = useCollection(api.donations.load);
-  const [donors, setDonors, loadingDonors] = useCollection(api.donors.load);
+  const [outreach, setOutreach, loadingOutreach, reloadOutreach] = useCollection(api.outreach.load);
+  const [salvage, setSalvage, loadingSalvage, reloadSalvage] = useCollection(api.salvage.load);
+  const [closet, setCloset, loadingCloset, reloadCloset] = useCollection(api.closet.load);
+  const [receipts, setReceipts, loadingReceipts, reloadReceipts] = useCollection(api.receipts.load);
+  const [donations, setDonations, loadingDonations, reloadDonations] = useCollection(api.donations.load);
+  const [donors, setDonors, loadingDonors, reloadDonors] = useCollection(api.donors.load);
   const [donationItemTypes, setDonationItemTypes] = useState(['Blankets', 'Coats/Hoodies']);
   const [salvageItemTypes, setSalvageItemTypes] = useState(['Blankets', 'Coats/Hoodies', 'Pounds']);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Tap the app name (sidebar / mobile header) to pull fresh data from Supabase.
+  async function refreshAll() {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        reloadOutreach(), reloadSalvage(), reloadCloset(),
+        reloadReceipts(), reloadDonations(), reloadDonors(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
     if (loadingDonations || donations.length === 0) return;
@@ -97,11 +112,16 @@ function MainApp({ session }) {
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-60 shrink-0 bg-blue-950 text-white min-h-screen sticky top-0 h-screen">
         <div className="p-4 border-b border-blue-900">
-          <div className="flex items-center gap-2">
-            <Moon size={20} className="text-amber-300" />
-            <h1 className="font-bold leading-tight">Olympia Downtown<br />Nightshift</h1>
-          </div>
-          <p className="text-blue-300 text-xs mt-1.5">Data Tracker</p>
+          <button onClick={refreshAll} title="Tap to refresh data" className="w-full text-left group">
+            <div className="flex items-center gap-2">
+              <Moon size={20} className={`text-amber-300 shrink-0 ${refreshing ? 'animate-spin' : 'group-hover:rotate-12'} transition-transform`} />
+              <h1 className="font-bold leading-tight group-hover:text-amber-200 transition-colors">Olympia Downtown<br />Nightshift</h1>
+            </div>
+            <p className="text-blue-300 text-xs mt-1.5 flex items-center gap-1">
+              <RefreshCw size={11} className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? 'Refreshing…' : 'Data Tracker — tap to refresh'}
+            </p>
+          </button>
         </div>
         <nav className="flex-1 p-2 flex flex-col gap-1 overflow-y-auto">
           {tabs.map(t => {
@@ -132,10 +152,10 @@ function MainApp({ session }) {
       <div className="flex-1 min-w-0 flex flex-col">
         {/* Mobile header + nav */}
         <div className="md:hidden bg-blue-950 text-white p-3 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <Moon size={18} className="text-amber-300 shrink-0" />
+          <button onClick={refreshAll} title="Tap to refresh data" className="flex items-center gap-2 min-w-0">
+            <Moon size={18} className={`text-amber-300 shrink-0 ${refreshing ? 'animate-spin' : ''}`} />
             <h1 className="font-bold truncate">Olympia Downtown Nightshift</h1>
-          </div>
+          </button>
           <div className="flex gap-1 shrink-0">
             <UndoRedoControls compact />
           </div>

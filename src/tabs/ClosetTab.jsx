@@ -63,7 +63,7 @@ export function ClosetTab({ entries, setEntries }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Shirt size={20} /> Log Closet Day</h2>
         <div className="flex flex-wrap items-end gap-4">
           <div><label className="block text-sm text-gray-600 mb-1">Date</label><input type="date" value={formDate} onChange={e => setFormDate(e.target.value)} className="border rounded px-2 py-1" /></div>
@@ -80,7 +80,7 @@ export function ClosetTab({ entries, setEntries }) {
         ))}
       </div>
       {view === 'week' && (
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setWeekAnchor(addDays(weekStart, -7))}><ChevronLeft /></button>
             <span className="font-medium text-sm">{toISO(weekStart)} — {toISO(addDays(weekStart, 6))}</span>
@@ -130,7 +130,7 @@ export function ClosetTab({ entries, setEntries }) {
         </div>
       )}
       {view === 'month' && (
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setMonthAnchor(new Date(monthYear, monthIdx - 1, 1))}><ChevronLeft /></button>
             <span className="font-medium">{MONTHS[monthIdx]} {monthYear}</span>
@@ -144,7 +144,7 @@ export function ClosetTab({ entries, setEntries }) {
         </div>
       )}
       {view === 'year' && (
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setYearSelected(y => y - 1)}><ChevronLeft /></button>
             <span className="font-medium">{yearSelected}</span>
@@ -157,7 +157,7 @@ export function ClosetTab({ entries, setEntries }) {
         </div>
       )}
       {view === 'all' && (
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={allYearData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="year" /><YAxis allowDecimals={false} /><Tooltip />
               <Bar dataKey="people" fill="#ec4899" /></BarChart>

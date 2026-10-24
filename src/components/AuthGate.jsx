@@ -50,11 +50,11 @@ export function AuthGate() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-xs p-6 text-center">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200-lg w-full max-w-xs p-6 text-center">
         <div className="flex items-center justify-center gap-2 mb-1">
-          <Moon size={20} className="text-amber-500" />
-          <h1 className="text-lg font-bold text-blue-950">Olympia Nightshift</h1>
+          <Moon size={20} className="text-amber-400" />
+          <h1 className="text-xl font-bold text-slate-800">Olympia Nightshift</h1>
         </div>
         <p className="text-sm text-gray-500 mb-6">Enter the crew passcode</p>
 
@@ -73,8 +73,8 @@ export function AuthGate() {
               onKeyDown={e => handleKeyDown(i, e)}
               autoFocus={i === 0}
               className={`w-10 h-12 border-2 rounded-lg text-center text-xl font-bold focus:outline-none transition-colors
-                ${error ? 'border-red-400 bg-red-50' : d ? 'border-blue-600' : 'border-gray-300'}
-                focus:border-blue-600 disabled:opacity-50`}
+                ${error ? 'border-red-400 bg-red-50' : d ? 'border-sky-500' : 'border-slate-300'}
+                focus:border-sky-500 disabled:opacity-50`}
             />
           ))}
         </div>

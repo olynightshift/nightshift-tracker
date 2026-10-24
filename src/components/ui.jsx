@@ -45,7 +45,7 @@ export function Modal({ onClose, children, maxWidth = 'max-w-lg' }) {
   }, [onClose]);
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className={`bg-white rounded-lg shadow-lg w-full max-h-full overflow-y-auto ${maxWidth}`} onClick={e => e.stopPropagation()}>
+      <div className={`bg-white rounded-xl shadow-sm border border-slate-200-lg w-full max-h-full overflow-y-auto ${maxWidth}`} onClick={e => e.stopPropagation()}>
         {children}
       </div>
     </div>

@@ -89,7 +89,7 @@ export function OutreachTab({ entries, setEntries }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="bg-white rounded-lg shadow p-4" ref={formRef}>
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4" ref={formRef}>
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Calendar size={20} /> Log Outreach Day</h2>
         <div className="flex flex-wrap items-end gap-4">
           <div><label className="block text-sm text-gray-600 mb-1">Date</label>
@@ -110,7 +110,7 @@ export function OutreachTab({ entries, setEntries }) {
       </div>
 
       {view === 'week' && (
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setWeekAnchor(addDays(weekStart, -7))}><ChevronLeft /></button>
             <span className="font-medium">{toISO(weekStart)} — {toISO(addDays(weekStart, 6))}</span>
@@ -163,7 +163,7 @@ export function OutreachTab({ entries, setEntries }) {
       )}
 
       {view === 'month' && (
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setMonthAnchor(new Date(monthYear, monthIdx - 1, 1))}><ChevronLeft /></button>
             <span className="font-medium">{MONTHS[monthIdx]} {monthYear}</span>
@@ -188,7 +188,7 @@ export function OutreachTab({ entries, setEntries }) {
       )}
 
       {view === 'year' && (
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setYearSelected(y => y - 1)}><ChevronLeft /></button>
             <span className="font-medium">{yearSelected}</span>
@@ -203,13 +203,13 @@ export function OutreachTab({ entries, setEntries }) {
 
       {view === 'all' && (
         <div className="grid md:grid-cols-2 gap-4">
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
             <ResponsiveContainer width="100%" height={240}>
               <PieChart><Pie data={pieData} dataKey="value" nameKey="name" outerRadius={80} label>
                 {pieData.map((_, i) => <Cell key={i} fill={i === 0 ? '#3b82f6' : '#f59e0b'} />)}</Pie><Tooltip /><Legend /></PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={allYearData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="year" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
                 <Bar dataKey="nightshift" fill="#3b82f6" /><Bar dataKey="coffee" fill="#f59e0b" /></BarChart>

@@ -48,7 +48,7 @@ export function ContactsTab({ donors, setDonors }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 className="text-lg font-semibold flex items-center gap-2"><Users size={20} /> Donor Contacts</h2>
           <div className="flex items-center gap-2">
@@ -59,7 +59,7 @@ export function ContactsTab({ donors, setDonors }) {
           </div>
         </div>
       </div>
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50"><tr className="text-left border-b"><th className="p-2">Name</th><th>Organization</th><th>Email</th><th>Phone</th><th>Address</th><th></th></tr></thead>
           <tbody>

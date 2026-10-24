@@ -139,7 +139,7 @@ export function ReceiptsTab({ receipts, setReceipts }) {
   return (
     <div className="flex flex-col gap-6">
       {/* Top bar: title + add */}
-      <div className="bg-white rounded-lg shadow p-4 flex items-center justify-between flex-wrap gap-3">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-lg font-semibold flex items-center gap-2"><ReceiptIcon size={20} /> Receipts</h2>
         <div className="flex items-center gap-2">
           <button onClick={() => { setEditingReceipt(null); setShowModal(true); }} className="bg-indigo-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-1"><Plus size={14} />Add Receipt</button>
@@ -152,7 +152,7 @@ export function ReceiptsTab({ receipts, setReceipts }) {
       </div>
 
       {/* Unified search panel */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
         <div className="text-sm font-medium mb-2 text-gray-700">Search & Filter</div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div><label className="block text-xs text-gray-500 mb-1 flex items-center gap-1"><Tag size={12} />Item contains</label>
@@ -197,10 +197,10 @@ export function ReceiptsTab({ receipts, setReceipts }) {
       {view === 'browse' && (
         <div className="flex flex-col gap-4">
           {sortedReceipts.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center text-gray-400">No receipts match the filters.</div>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center text-gray-400">No receipts match the filters.</div>
           ) : (
             <>
-              <div className="bg-white rounded-lg shadow p-4">
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <button onClick={() => setFocusIdx(i => Math.max(0, i - 1))} disabled={focusIdx === 0} className="disabled:opacity-30"><ChevronLeft /></button>
                   <div className="text-sm text-gray-600">Receipt {focusIdx + 1} of {sortedReceipts.length}</div>
@@ -242,7 +242,7 @@ export function ReceiptsTab({ receipts, setReceipts }) {
                 )}
               </div>
 
-              <div className="bg-white rounded-lg shadow overflow-x-auto">
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50"><tr className="text-left border-b"><th className="p-2">Date</th><th>Store</th><th>Items</th><th>Categories</th><th className="text-right">Total</th><th></th></tr></thead>
                   <tbody>
@@ -271,7 +271,7 @@ export function ReceiptsTab({ receipts, setReceipts }) {
       {view === 'items' && (
         <div className="flex flex-col gap-4">
           {focusedItem ? (
-            <div className="bg-white rounded-lg shadow p-4">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-semibold">{focusedItem.name}</h3>
                 <button onClick={() => setFocusedItem(null)} className="text-sm text-blue-600 underline">← Back to catalogue</button>
@@ -308,7 +308,7 @@ export function ReceiptsTab({ receipts, setReceipts }) {
               </table>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow overflow-x-auto">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50"><tr className="text-left border-b"><th className="p-2">Item</th><th>Times</th><th>Total $</th><th>Avg $</th><th>Last seen</th><th>Stores</th><th>Categories</th></tr></thead>
                 <tbody>
@@ -333,7 +333,7 @@ export function ReceiptsTab({ receipts, setReceipts }) {
 
       {/* ---------- MATCHING LINE ITEMS (flat view) ---------- */}
       {view === 'results' && (
-        <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50"><tr className="text-left border-b"><th className="p-2">Date</th><th>Store</th><th>Item</th><th>Category</th><th className="text-right">Cost</th><th></th></tr></thead>
             <tbody>
@@ -359,11 +359,11 @@ export function ReceiptsTab({ receipts, setReceipts }) {
       {/* ---------- REPORTS ---------- */}
       {view === 'reports' && (
         <div className="grid md:grid-cols-2 gap-4">
-          <div className="bg-white rounded-lg shadow p-4 md:col-span-2 text-center">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:col-span-2 text-center">
             <div className="text-3xl font-bold">${totalSpent.toFixed(2)}</div>
             <div className="text-sm text-gray-500">Total across {filteredReceipts.length} receipts (filtered)</div>
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
             <h3 className="font-medium mb-2">By Store</h3>
             {storeData.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
@@ -373,7 +373,7 @@ export function ReceiptsTab({ receipts, setReceipts }) {
               </ResponsiveContainer>
             ) : <div className="text-gray-400 py-8 text-center text-sm">No data</div>}
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
             <h3 className="font-medium mb-2">By Category</h3>
             {categoryData.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
@@ -382,7 +382,7 @@ export function ReceiptsTab({ receipts, setReceipts }) {
               </ResponsiveContainer>
             ) : <div className="text-gray-400 py-8 text-center text-sm">No data</div>}
           </div>
-          <div className="bg-white rounded-lg shadow p-4 md:col-span-2">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:col-span-2">
             <h3 className="font-medium mb-2">Monthly Spend</h3>
             {monthTrend.length > 0 ? (
               <ResponsiveContainer width="100%" height={240}>

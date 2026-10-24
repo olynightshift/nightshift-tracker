@@ -193,7 +193,7 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Icon size={20} /> {config.title}</h2>
         <div className="mb-3">
           <div className="text-sm text-gray-600 mb-1">Item types:</div>
@@ -239,7 +239,7 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
       </div>
 
       {view === 'week' && (
-        <div className="bg-white rounded-lg shadow p-4 overflow-x-auto">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 overflow-x-auto">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setWeekAnchor(addDays(weekStart, -7))}><ChevronLeft /></button>
             <span className="font-medium text-sm">{toISO(weekStart)} — {toISO(addDays(weekStart, 6))}</span>
@@ -256,7 +256,7 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
       )}
 
       {view === 'month' && (
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setMonthAnchor(new Date(monthYear, monthIdx - 1, 1))}><ChevronLeft /></button>
             <span className="font-medium">{MONTHS[monthIdx]} {monthYear}</span>
@@ -276,7 +276,7 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
       )}
 
       {view === 'year' && (
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setYearSelected(y => y - 1)}><ChevronLeft /></button>
             <span className="font-medium">{yearSelected}</span>
@@ -292,7 +292,7 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
       {view === 'all' && (
         <div className="grid md:grid-cols-2 gap-4">
           {weightType && (
-            <div className="bg-white rounded-lg shadow p-4 md:col-span-2 flex items-center justify-between flex-wrap gap-2">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:col-span-2 flex items-center justify-between flex-wrap gap-2">
               <div>
                 <div className="text-xs text-gray-500 uppercase tracking-wide">Total {weightType} collected (all time)</div>
                 <div className="text-2xl font-bold">{totalWeight.toLocaleString()} <span className="text-sm font-normal text-gray-500">lbs</span></div>
@@ -300,7 +300,7 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
               <div className="text-xs text-gray-400">Weight is tracked separately from item counts in all charts.</div>
             </div>
           )}
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
             <h3 className="font-medium mb-2">Split by Item Type</h3>
             {pieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
@@ -309,14 +309,14 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
               </ResponsiveContainer>
             ) : <div className="text-gray-400 py-8 text-center text-sm">No {config.noun.toLowerCase()} yet</div>}
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
             <h3 className="font-medium mb-2">By Year</h3>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={allYearData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="year" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
                 {chartItemTypes.map((t, i) => <Bar key={t} dataKey={t} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}</BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="bg-white rounded-lg shadow p-4 md:col-span-2">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:col-span-2">
             <h3 className="font-medium mb-2">Top {config.contactLabel}s (by total items)</h3>
             {topContacts.length > 0 ? (
               <ResponsiveContainer width="100%" height={280}>

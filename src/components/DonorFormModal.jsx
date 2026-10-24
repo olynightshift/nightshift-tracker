@@ -53,21 +53,21 @@ export function DonorFormModal({ donor, setDonors, onClose, onSaved }) {
         <button onClick={onClose}><X size={20} /></button>
       </div>
       <div className="p-4 flex flex-col gap-3">
-        <div><label className="block text-sm text-gray-600 mb-1">Name <span className="text-red-500">*</span></label>
+        <div><label className="block text-sm text-slate-400 mb-1">Name <span className="text-red-500">*</span></label>
           <input type="text" value={name} onChange={e => setName(e.target.value)} className="border rounded px-2 py-1 w-full" autoFocus /></div>
-        <div><label className="block text-sm text-gray-600 mb-1">Organization</label>
+        <div><label className="block text-sm text-slate-400 mb-1">Organization</label>
           <input type="text" value={organization} onChange={e => setOrganization(e.target.value)} className="border rounded px-2 py-1 w-full" /></div>
-        <div><label className="block text-sm text-gray-600 mb-1 flex items-center gap-1"><Mail size={14} /> Email</label>
+        <div><label className="block text-sm text-slate-400 mb-1 flex items-center gap-1"><Mail size={14} /> Email</label>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="border rounded px-2 py-1 w-full" /></div>
-        <div><label className="block text-sm text-gray-600 mb-1 flex items-center gap-1"><Phone size={14} /> Phone</label>
+        <div><label className="block text-sm text-slate-400 mb-1 flex items-center gap-1"><Phone size={14} /> Phone</label>
           <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="border rounded px-2 py-1 w-full" /></div>
-        <div><label className="block text-sm text-gray-600 mb-1 flex items-center gap-1"><MapPin size={14} /> Address</label>
+        <div><label className="block text-sm text-slate-400 mb-1 flex items-center gap-1"><MapPin size={14} /> Address</label>
           <textarea value={address} onChange={e => setAddress(e.target.value)} rows={2} className="border rounded px-2 py-1 w-full" /></div>
-        <div><label className="block text-sm text-gray-600 mb-1">Notes</label>
+        <div><label className="block text-sm text-slate-400 mb-1">Notes</label>
           <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="border rounded px-2 py-1 w-full" /></div>
       </div>
-      <div className="flex justify-end gap-2 p-4 border-t bg-gray-50">
-        <button onClick={onClose} className="px-4 py-1.5 rounded border bg-white">Cancel</button>
+      <div className="flex justify-end gap-2 p-4 border-t bg-slate-800">
+        <button onClick={onClose} className="px-4 py-1.5 rounded border bg-slate-900">Cancel</button>
         <button onClick={handleSave} disabled={saving} className="px-4 py-1.5 rounded bg-emerald-600 text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save Contact'}</button>
       </div>
     </Modal>

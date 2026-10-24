@@ -39,7 +39,7 @@ export default function OlympiaNightshiftTracker() {
       <ConfirmProvider>
       <UndoProvider>
       {supabase && !authChecked && (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-400 text-sm">Checking session…</div>
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400 text-sm">Checking session…</div>
       )}
       {supabase && authChecked && !session && <AuthGate />}
       {(!supabase || session) && <MainApp session={session} />}
@@ -110,7 +110,7 @@ function MainApp({ session }) {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-64 shrink-0 bg-slate-900 text-white min-h-screen sticky top-0 h-screen">
         <div className="p-6 border-b border-slate-700">
@@ -129,7 +129,7 @@ function MainApp({ session }) {
           {tabs.map(t => {
             const Icon = t.icon;
             return (
-              <button key={t.id} onClick={() => setTab(t.id)} className={`sidebar-link w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-sm font-medium transition-colors ${tab === t.id ? 'active bg-white/10 text-white border-l-[3px] border-amber-400' : 'text-slate-300 hover:bg-white/10 hover:text-white border-l-[3px] border-transparent'}`}>
+              <button key={t.id} onClick={() => setTab(t.id)} className={`sidebar-link w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-sm font-medium transition-colors ${tab === t.id ? 'active bg-slate-900/10 text-white border-l-[3px] border-amber-400' : 'text-slate-300 hover:bg-slate-900/10 hover:text-white border-l-[3px] border-transparent'}`}>
                 <Icon size={16} className="w-5 shrink-0" /> {t.label}
               </button>
             );
@@ -162,18 +162,18 @@ function MainApp({ session }) {
             <UndoRedoControls compact />
           </div>
         </div>
-        <nav className="md:hidden flex gap-1 p-2 bg-white border-b border-slate-200 overflow-x-auto">
+        <nav className="md:hidden flex gap-1 p-2 bg-slate-900 border-b border-slate-700 overflow-x-auto">
           {tabs.map(t => {
             const Icon = t.icon;
             return (
-              <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${tab === t.id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>
+              <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${tab === t.id ? 'bg-slate-100 text-slate-900' : 'bg-slate-800 text-slate-400'}`}>
                 <Icon size={13} /> {t.label.split(' ')[0]}
               </button>
             );
           })}
         </nav>
 
-        {!supabase && <div className="bg-red-50 border-b border-red-200 text-red-700 text-sm p-3 text-center">Supabase not configured — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.</div>}
+        {!supabase && <div className="bg-red-950/40 border-b border-red-200 text-red-700 text-sm p-3 text-center">Supabase not configured — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.</div>}
         {loading && <div className="h-1 bg-sky-500 animate-pulse" />}
 
         <main className="p-4 md:p-8 w-full">

@@ -63,24 +63,24 @@ export function ClosetTab({ entries, setEntries }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+      <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4">
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Shirt size={20} /> Log Closet Day</h2>
         <div className="flex flex-wrap items-end gap-4">
-          <div><label className="block text-sm text-gray-600 mb-1">Date</label><input type="date" value={formDate} onChange={e => setFormDate(e.target.value)} className="border rounded px-2 py-1" /></div>
-          <div><label className="block text-sm text-gray-600 mb-1">People Served</label><input type="number" min="0" value={peopleCount} onChange={e => setPeopleCount(e.target.value)} className="border rounded px-2 py-1 w-28" /></div>
+          <div><label className="block text-sm text-slate-400 mb-1">Date</label><input type="date" value={formDate} onChange={e => setFormDate(e.target.value)} className="border rounded px-2 py-1" /></div>
+          <div><label className="block text-sm text-slate-400 mb-1">People Served</label><input type="number" min="0" value={peopleCount} onChange={e => setPeopleCount(e.target.value)} className="border rounded px-2 py-1 w-28" /></div>
           <button onClick={addEntry} className="bg-pink-600 text-white px-4 py-1.5 rounded flex items-center gap-1"><Plus size={16} />Add</button>
-          <button onClick={exportCSV} className="ml-auto bg-gray-100 px-3 py-1.5 rounded flex items-center gap-1 text-sm"><Download size={16} />Export CSV</button>
+          <button onClick={exportCSV} className="ml-auto bg-slate-800 px-3 py-1.5 rounded flex items-center gap-1 text-sm"><Download size={16} />Export CSV</button>
         </div>
       </div>
       <div className="flex gap-2">
         {['week', 'month', 'year', 'all'].map(v => (
-          <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 rounded text-sm ${view === v ? 'bg-pink-600 text-white' : 'bg-white border'}`}>
+          <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 rounded text-sm ${view === v ? 'bg-pink-600 text-white' : 'bg-slate-900 border'}`}>
             {v === 'week' ? 'Week' : v === 'month' ? 'Month' : v === 'year' ? 'Year' : 'All Time'}
           </button>
         ))}
       </div>
       {view === 'week' && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setWeekAnchor(addDays(weekStart, -7))}><ChevronLeft /></button>
             <span className="font-medium text-sm">{toISO(weekStart)} — {toISO(addDays(weekStart, 6))}</span>
@@ -112,11 +112,11 @@ export function ClosetTab({ entries, setEntries }) {
                             });
                             if (ok) { setEditingId(null); toast('Entry updated.', 'success'); }
                           }}><Save size={14} className="text-green-500" /></button>
-                          <button onClick={() => setEditingId(null)}><X size={14} className="text-gray-500" /></button>
+                          <button onClick={() => setEditingId(null)}><X size={14} className="text-slate-400" /></button>
                         </>
                       ) : (
                         <>
-                          <button onClick={() => { setEditingId(e.id); setEditBuffer({ ...e }); }}><Edit2 size={14} className="text-blue-500" /></button>
+                          <button onClick={() => { setEditingId(e.id); setEditBuffer({ ...e }); }}><Edit2 size={14} className="text-sky-400" /></button>
                           <button onClick={() => deleteEntry(e)}><Trash2 size={14} className="text-red-500" /></button>
                         </>
                       )}
@@ -124,13 +124,13 @@ export function ClosetTab({ entries, setEntries }) {
                   </tr>
                 );
               })}
-              {weekEntries.length === 0 && <tr><td colSpan="3" className="text-center text-gray-400 py-3">No entries this week</td></tr>}
+              {weekEntries.length === 0 && <tr><td colSpan="3" className="text-center text-slate-500 py-3">No entries this week</td></tr>}
             </tbody>
           </table>
         </div>
       )}
       {view === 'month' && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setMonthAnchor(new Date(monthYear, monthIdx - 1, 1))}><ChevronLeft /></button>
             <span className="font-medium">{MONTHS[monthIdx]} {monthYear}</span>
@@ -144,7 +144,7 @@ export function ClosetTab({ entries, setEntries }) {
         </div>
       )}
       {view === 'year' && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setYearSelected(y => y - 1)}><ChevronLeft /></button>
             <span className="font-medium">{yearSelected}</span>
@@ -157,7 +157,7 @@ export function ClosetTab({ entries, setEntries }) {
         </div>
       )}
       {view === 'all' && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4">
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={allYearData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="year" /><YAxis allowDecimals={false} /><Tooltip />
               <Bar dataKey="people" fill="#ec4899" /></BarChart>

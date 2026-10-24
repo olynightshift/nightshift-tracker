@@ -34,10 +34,10 @@ export function ConfirmProvider({ children }) {
               <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
                 <AlertTriangle size={18} className="text-red-600" />
               </div>
-              <div className="text-sm text-gray-700 pt-1.5">{state.message}</div>
+              <div className="text-sm text-slate-300 pt-1.5">{state.message}</div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => answer(false)} className="px-4 py-1.5 rounded border bg-white text-sm">Cancel</button>
+              <button onClick={() => answer(false)} className="px-4 py-1.5 rounded border bg-slate-900 text-sm">Cancel</button>
               <button onClick={() => answer(true)} autoFocus className="px-4 py-1.5 rounded bg-red-600 text-white text-sm font-medium">Delete</button>
             </div>
           </div>

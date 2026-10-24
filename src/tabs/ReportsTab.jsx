@@ -69,27 +69,27 @@ export function ReportsTab({ outreach, salvage, closet, receipts, donations, sal
     ...receipts.map(r => ({ date: r.date, dotCls: 'bg-rose-500', text: `Receipt: $${receiptTotal(r).toFixed(2)} at ${r.store}` })),
   ].sort((a, b) => b.date.localeCompare(a.date) || (b.text > a.text ? 1 : -1)).slice(0, 30);
 
-  const card = 'bg-white rounded-xl shadow-sm border border-slate-200 p-6';
-  const cardTitle = 'text-lg font-semibold text-slate-800 mb-4';
+  const card = 'bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-6';
+  const cardTitle = 'text-lg font-semibold text-slate-100 mb-4';
   const empty = (msg) => <div className="text-slate-400 text-sm h-[220px] flex items-center justify-center">{msg}</div>;
-  const axis = { fontSize: 10 };
+  const axis = { fontSize: 10, fill: '#94a3b8' };
 
   return (
     <div className="fade-in">
-      <h2 className="text-2xl font-bold text-slate-800 mb-6">Reports &amp; Analytics</h2>
+      <h2 className="text-2xl font-bold text-slate-100 mb-6">Reports &amp; Analytics</h2>
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {kpis.map(k => {
           const Icon = k.icon;
           return (
-            <div key={k.label} className="stat-card bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <div key={k.label} className="stat-card bg-slate-900 p-5 rounded-xl shadow-sm border border-slate-700">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-sm text-slate-500 truncate">{k.label}</p>
+                  <p className="text-sm text-slate-400 truncate">{k.label}</p>
                   <p className={`text-2xl font-bold ${k.valCls}`}>{k.value}</p>
                 </div>
-                <div className="bg-slate-100 p-3 rounded-lg shrink-0"><Icon size={18} className="text-slate-500" /></div>
+                <div className="bg-slate-800 p-3 rounded-lg shrink-0"><Icon size={18} className="text-slate-400" /></div>
               </div>
             </div>
           );
@@ -101,7 +101,7 @@ export function ReportsTab({ outreach, salvage, closet, receipts, donations, sal
           <h3 className={cardTitle}>Outreach by Year</h3>
           {yearData.length > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={yearData}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="year" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
+              <BarChart data={yearData}><CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis dataKey="year" /><YAxis allowDecimals={false} /><Tooltip /><Legend wrapperStyle={{ color: '#94a3b8' }} />
                 <Bar dataKey="nightshift" name="Nightshift" fill="#0284c7" /><Bar dataKey="coffee" name="Mission Coffee" fill="#f59e0b" /></BarChart>
             </ResponsiveContainer>
           ) : empty('No outreach data yet')}
@@ -110,7 +110,7 @@ export function ReportsTab({ outreach, salvage, closet, receipts, donations, sal
           <h3 className={cardTitle}>Monthly Spend &amp; Tax</h3>
           {monthTrend.length > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={monthTrend}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="month" tick={axis} /><YAxis tick={axis} /><Tooltip /><Legend />
+              <LineChart data={monthTrend}><CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis dataKey="month" tick={axis} /><YAxis tick={axis} /><Tooltip /><Legend wrapperStyle={{ color: '#94a3b8' }} />
                 <Line type="monotone" dataKey="spent" name="Total spent (incl. tax)" stroke="#e11d48" strokeWidth={2} dot={{ r: 3 }} />
                 <Line type="monotone" dataKey="tax" name="Tax portion" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} /></LineChart>
             </ResponsiveContainer>
@@ -121,7 +121,7 @@ export function ReportsTab({ outreach, salvage, closet, receipts, donations, sal
           {salvageByType.some(d => d.total > 0) ? (
             <ResponsiveContainer width="100%" height={Math.max(220, salvageByType.length * 34)}>
               <BarChart data={salvageByType} layout="vertical" margin={{ left: 12 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis type="number" tick={axis} /><YAxis type="category" dataKey="type" width={120} tick={{ fontSize: 11 }} /><Tooltip />
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis type="number" tick={axis} /><YAxis type="category" dataKey="type" width={120} tick={{ fontSize: 11, fill: '#94a3b8' }} /><Tooltip />
                 <Bar dataKey="total" name="Items" radius={[0, 4, 4, 0]}>{salvageByType.map((d, i) => <Cell key={d.type} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}</Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -132,7 +132,7 @@ export function ReportsTab({ outreach, salvage, closet, receipts, donations, sal
           {donationByType.some(d => d.total > 0) ? (
             <ResponsiveContainer width="100%" height={Math.max(220, donationByType.length * 34)}>
               <BarChart data={donationByType} layout="vertical" margin={{ left: 12 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis type="number" tick={axis} /><YAxis type="category" dataKey="type" width={120} tick={{ fontSize: 11 }} /><Tooltip />
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis type="number" tick={axis} /><YAxis type="category" dataKey="type" width={120} tick={{ fontSize: 11, fill: '#94a3b8' }} /><Tooltip />
                 <Bar dataKey="total" name="Items" radius={[0, 4, 4, 0]}>{donationByType.map((d, i) => <Cell key={d.type} fill={PIE_COLORS[(i + 3) % PIE_COLORS.length]} />)}</Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -145,12 +145,12 @@ export function ReportsTab({ outreach, salvage, closet, receipts, donations, sal
           <h3 className={cardTitle}>Donor Leaderboard (all time)</h3>
           {topDonors.length > 0 ? (
             <table className="w-full text-sm">
-              <thead><tr className="text-left text-slate-500 border-b"><th className="py-2 w-10">#</th><th>Donor</th><th className="text-right">Items</th></tr></thead>
+              <thead><tr className="text-left text-slate-400 border-b"><th className="py-2 w-10">#</th><th>Donor</th><th className="text-right">Items</th></tr></thead>
               <tbody>
                 {topDonors.map((d, i) => (
                   <tr key={d.donor} className="border-b last:border-0">
                     <td className="py-2 text-slate-400">{i + 1}</td>
-                    <td className="font-medium text-slate-700">{d.donor}</td>
+                    <td className="font-medium text-slate-200">{d.donor}</td>
                     <td className="text-right font-semibold text-pink-600">{d.total.toLocaleString()}</td>
                   </tr>
                 ))}
@@ -159,14 +159,14 @@ export function ReportsTab({ outreach, salvage, closet, receipts, donations, sal
           ) : empty('No donation data yet')}
         </div>
         <div className={`${card} p-6`}>
-          <h3 className={`${cardTitle} flex items-center gap-2`}><Activity size={18} className="text-slate-500" /> Activity Log</h3>
+          <h3 className={`${cardTitle} flex items-center gap-2`}><Activity size={18} className="text-slate-400" /> Activity Log</h3>
           {activity.length > 0 ? (
             <ul className="text-sm max-h-80 overflow-y-auto">
               {activity.map((a, i) => (
-                <li key={i} className="flex items-center gap-2 py-1.5 border-b border-slate-100 last:border-0">
+                <li key={i} className="flex items-center gap-2 py-1.5 border-b border-slate-800 last:border-0">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${a.dotCls}`} />
                   <span className="text-slate-400 text-xs w-20 shrink-0">{a.date}</span>
-                  <span className="truncate text-slate-700">{a.text}</span>
+                  <span className="truncate text-slate-200">{a.text}</span>
                 </li>
               ))}
             </ul>

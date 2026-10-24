@@ -89,28 +89,28 @@ export function OutreachTab({ entries, setEntries }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4" ref={formRef}>
+      <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4" ref={formRef}>
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Calendar size={20} /> Log Outreach Day</h2>
         <div className="flex flex-wrap items-end gap-4">
-          <div><label className="block text-sm text-gray-600 mb-1">Date</label>
+          <div><label className="block text-sm text-slate-400 mb-1">Date</label>
             <input type="date" value={formDate} onChange={e => loadDay(e.target.value)} className="border rounded px-2 py-1" /></div>
           <label className="flex items-center gap-2"><input type="checkbox" checked={formNightshift} onChange={e => setFormNightshift(e.target.checked)} /><span className="text-sm">Nightshift Outreach</span></label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={formCoffee} onChange={e => setFormCoffee(e.target.checked)} /><span className="text-sm">Mission Coffee</span></label>
           <button onClick={saveEntry} className="bg-blue-600 text-white px-4 py-1.5 rounded flex items-center gap-1"><Plus size={16} />Save Day</button>
-          <button onClick={exportCSV} className="ml-auto bg-gray-100 px-3 py-1.5 rounded flex items-center gap-1 text-sm"><Download size={16} />Export CSV</button>
+          <button onClick={exportCSV} className="ml-auto bg-slate-800 px-3 py-1.5 rounded flex items-center gap-1 text-sm"><Download size={16} />Export CSV</button>
         </div>
       </div>
 
       <div className="flex gap-2">
         {['week', 'month', 'year', 'all'].map(v => (
-          <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 rounded text-sm ${view === v ? 'bg-blue-600 text-white' : 'bg-white border'}`}>
+          <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 rounded text-sm ${view === v ? 'bg-blue-600 text-white' : 'bg-slate-900 border'}`}>
             {v === 'week' ? 'Week' : v === 'month' ? 'Month' : v === 'year' ? 'Year' : 'All Time'}
           </button>
         ))}
       </div>
 
       {view === 'week' && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setWeekAnchor(addDays(weekStart, -7))}><ChevronLeft /></button>
             <span className="font-medium">{toISO(weekStart)} — {toISO(addDays(weekStart, 6))}</span>
@@ -122,7 +122,7 @@ export function OutreachTab({ entries, setEntries }) {
               {weekDays.map(d => {
                 const iso = toISO(d); const e = entryMap[iso]; const isEditing = editingId === iso;
                 return (
-                  <tr key={iso} className="border-b hover:bg-gray-50">
+                  <tr key={iso} className="border-b hover:bg-slate-800">
                     <td className="py-1.5">{DAYS[d.getDay()]}</td><td>{iso}</td>
                     <td>{isEditing ? <input type="checkbox" checked={editBuffer.nightshift} onChange={ev => setEditBuffer({ ...editBuffer, nightshift: ev.target.checked })} /> : (e?.nightshift ? '✅' : '—')}</td>
                     <td>{isEditing ? <input type="checkbox" checked={editBuffer.coffee} onChange={ev => setEditBuffer({ ...editBuffer, coffee: ev.target.checked })} /> : (e?.coffee ? '✅' : '—')}</td>
@@ -145,11 +145,11 @@ export function OutreachTab({ entries, setEntries }) {
                             });
                             if (ok) { setEditingId(null); toast('Entry updated.', 'success'); }
                           }}><Save size={14} className="text-green-500" /></button>
-                          <button onClick={() => setEditingId(null)}><X size={14} className="text-gray-500" /></button>
+                          <button onClick={() => setEditingId(null)}><X size={14} className="text-slate-400" /></button>
                         </>
                       ) : (
                         <>
-                          {e && <button onClick={() => { setEditingId(iso); setEditBuffer({ ...e }); }}><Edit2 size={14} className="text-blue-500" /></button>}
+                          {e && <button onClick={() => { setEditingId(iso); setEditBuffer({ ...e }); }}><Edit2 size={14} className="text-sky-400" /></button>}
                           {e && <button onClick={() => deleteEntry(iso)}><Trash2 size={14} className="text-red-500" /></button>}
                         </>
                       )}
@@ -163,18 +163,18 @@ export function OutreachTab({ entries, setEntries }) {
       )}
 
       {view === 'month' && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setMonthAnchor(new Date(monthYear, monthIdx - 1, 1))}><ChevronLeft /></button>
             <span className="font-medium">{MONTHS[monthIdx]} {monthYear}</span>
             <button onClick={() => setMonthAnchor(new Date(monthYear, monthIdx + 1, 1))}><ChevronRight /></button>
           </div>
-          <div className="grid grid-cols-7 gap-1 text-xs text-center mb-1 text-gray-500">{DAYS.map(d => <div key={d}>{d}</div>)}</div>
+          <div className="grid grid-cols-7 gap-1 text-xs text-center mb-1 text-slate-400">{DAYS.map(d => <div key={d}>{d}</div>)}</div>
           <div className="grid grid-cols-7 gap-1">
             {monthGridDays.map((d, i) => {
               const iso = toISO(d); const e = entryMap[iso]; const inMonth = d.getMonth() === monthIdx;
               return (
-                <div key={i} onClick={() => loadDay(iso)} className={`border rounded p-1 h-16 text-xs cursor-pointer ${inMonth ? 'bg-white' : 'bg-gray-50 text-gray-300'} hover:ring-2 ring-blue-300`}>
+                <div key={i} onClick={() => loadDay(iso)} className={`border rounded p-1 h-16 text-xs cursor-pointer ${inMonth ? 'bg-slate-900' : 'bg-slate-800 text-slate-400'} hover:ring-2 ring-blue-300`}>
                   <div>{d.getDate()}</div>
                   <div className="flex gap-1 mt-1">
                     {e?.nightshift && <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />}
@@ -188,14 +188,14 @@ export function OutreachTab({ entries, setEntries }) {
       )}
 
       {view === 'year' && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setYearSelected(y => y - 1)}><ChevronLeft /></button>
             <span className="font-medium">{yearSelected}</span>
             <button onClick={() => setYearSelected(y => y + 1)}><ChevronRight /></button>
           </div>
           <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={yearData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
+            <BarChart data={yearData}><CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis dataKey="month" tick={{ fill: '#94a3b8', fontSize: 11 }} /><YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} /><Tooltip /><Legend wrapperStyle={{ color: '#94a3b8' }} />
               <Bar dataKey="nightshift" fill="#3b82f6" /><Bar dataKey="coffee" fill="#f59e0b" /></BarChart>
           </ResponsiveContainer>
         </div>
@@ -203,15 +203,15 @@ export function OutreachTab({ entries, setEntries }) {
 
       {view === 'all' && (
         <div className="grid md:grid-cols-2 gap-4">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4">
             <ResponsiveContainer width="100%" height={240}>
               <PieChart><Pie data={pieData} dataKey="value" nameKey="name" outerRadius={80} label>
-                {pieData.map((_, i) => <Cell key={i} fill={i === 0 ? '#3b82f6' : '#f59e0b'} />)}</Pie><Tooltip /><Legend /></PieChart>
+                {pieData.map((_, i) => <Cell key={i} fill={i === 0 ? '#3b82f6' : '#f59e0b'} />)}</Pie><Tooltip /><Legend wrapperStyle={{ color: '#94a3b8' }} /></PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4">
             <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={allYearData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="year" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
+              <BarChart data={allYearData}><CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis dataKey="year" tick={{ fill: '#94a3b8', fontSize: 11 }} /><YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} /><Tooltip /><Legend wrapperStyle={{ color: '#94a3b8' }} />
                 <Bar dataKey="nightshift" fill="#3b82f6" /><Bar dataKey="coffee" fill="#f59e0b" /></BarChart>
             </ResponsiveContainer>
           </div>

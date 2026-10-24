@@ -74,22 +74,22 @@ export function Dashboard({ outreach, salvage, closet, receipts, donations, salv
     ...receipts.map(r => ({ date: r.date, dotCls: 'bg-rose-500', text: `Receipt: $${receiptTotal(r).toFixed(2)} at ${r.store}` })),
   ].sort((a, b) => b.date.localeCompare(a.date) || (b.text > a.text ? 1 : -1)).slice(0, 12);
 
-  const card = 'bg-white rounded-xl shadow-sm border border-slate-200';
-  const cardTitle = 'text-lg font-semibold text-slate-800 mb-4';
+  const card = 'bg-slate-900 rounded-xl shadow-sm border border-slate-700';
+  const cardTitle = 'text-lg font-semibold text-slate-100 mb-4';
   const empty = (msg) => <div className="text-slate-400 text-sm h-[220px] flex items-center justify-center">{msg}</div>;
 
   return (
     <div className="fade-in">
-      <h2 className="text-2xl font-bold text-slate-800 mb-6">Dashboard</h2>
+      <h2 className="text-2xl font-bold text-slate-100 mb-6">Dashboard</h2>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {stats.map(s => {
           const Icon = s.icon;
           return (
-            <div key={s.label} className="stat-card bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <div key={s.label} className="stat-card bg-slate-900 p-5 rounded-xl shadow-sm border border-slate-700">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-sm text-slate-500 truncate">{s.label}</p>
+                  <p className="text-sm text-slate-400 truncate">{s.label}</p>
                   <p className={`text-2xl font-bold ${s.valCls}`}>{s.value}</p>
                 </div>
                 <div className={`${s.chip} p-3 rounded-lg shrink-0`}><Icon size={18} className={s.iconCls} /></div>
@@ -103,7 +103,7 @@ export function Dashboard({ outreach, salvage, closet, receipts, donations, salv
         <div className={`${card} p-6`}>
           <h3 className={cardTitle}>Outreach Activity (Last 30 Days)</h3>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={outreach30}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="day" tick={{ fontSize: 10 }} interval={4} /><YAxis allowDecimals={false} /><Tooltip /><Legend />
+            <BarChart data={outreach30}><CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} interval={4} /><YAxis allowDecimals={false} /><Tooltip /><Legend wrapperStyle={{ color: '#94a3b8' }} />
               <Bar dataKey="nightshift" name="Nightshift" fill="#0284c7" /><Bar dataKey="coffee" name="Mission Coffee" fill="#f59e0b" /></BarChart>
           </ResponsiveContainer>
         </div>
@@ -111,7 +111,7 @@ export function Dashboard({ outreach, salvage, closet, receipts, donations, salv
           <h3 className={cardTitle}>Salvage Trends (Last 30 Days)</h3>
           {salvage30.some(d => d.items > 0) ? (
             <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={salvage30}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="day" tick={{ fontSize: 10 }} interval={4} /><YAxis allowDecimals={false} /><Tooltip />
+              <LineChart data={salvage30}><CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} interval={4} /><YAxis allowDecimals={false} /><Tooltip />
                 <Line type="monotone" dataKey="items" name="Items" stroke="#0d9488" strokeWidth={2} dot={false} /></LineChart>
             </ResponsiveContainer>
           ) : empty('No salvage data in the last 30 days')}
@@ -120,7 +120,7 @@ export function Dashboard({ outreach, salvage, closet, receipts, donations, salv
           <h3 className={cardTitle}>Clothing Closet Usage (Last 30 Days)</h3>
           {closet30.some(d => d.people > 0) ? (
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={closet30}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="day" tick={{ fontSize: 10 }} interval={4} /><YAxis allowDecimals={false} /><Tooltip />
+              <BarChart data={closet30}><CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} interval={4} /><YAxis allowDecimals={false} /><Tooltip />
                 <Bar dataKey="people" name="People served" fill="#9333ea" /></BarChart>
             </ResponsiveContainer>
           ) : empty('No closet data in the last 30 days')}
@@ -129,7 +129,7 @@ export function Dashboard({ outreach, salvage, closet, receipts, donations, salv
           <h3 className={cardTitle}>Expense Breakdown by Category</h3>
           {catData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
-              <PieChart><Pie data={catData} dataKey="total" nameKey="category" cx="50%" cy="50%" outerRadius={80} label={(e) => e.category}>
+              <PieChart><Pie data={catData} dataKey="total" nameKey="category" cx="50%" cy="50%" outerRadius={80} label={({ name, x, y }) => <text x={x} y={y} fill="#94a3b8" fontSize={11}>{name}</text>}>
                 {catData.map((c, i) => <Cell key={c.category} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
               </Pie><Tooltip /></PieChart>
             </ResponsiveContainer>
@@ -144,7 +144,7 @@ export function Dashboard({ outreach, salvage, closet, receipts, donations, salv
         <div className={`${card} p-6`}>
           <h3 className={cardTitle}>Outreach — {currentYear}</h3>
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={yearData}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="month" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
+            <BarChart data={yearData}><CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis dataKey="month" /><YAxis allowDecimals={false} /><Tooltip /><Legend wrapperStyle={{ color: '#94a3b8' }} />
               <Bar dataKey="nightshift" name="Nightshift" fill="#0284c7" /><Bar dataKey="coffee" name="Mission Coffee" fill="#f59e0b" /></BarChart>
           </ResponsiveContainer>
         </div>
@@ -152,7 +152,7 @@ export function Dashboard({ outreach, salvage, closet, receipts, donations, salv
           <h3 className={cardTitle}>Monthly Spend</h3>
           {monthTrend.length > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={monthTrend}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="month" /><YAxis /><Tooltip />
+              <LineChart data={monthTrend}><CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis dataKey="month" /><YAxis /><Tooltip />
                 <Line type="monotone" dataKey="total" stroke="#e11d48" strokeWidth={2} dot={{ r: 3 }} /></LineChart>
             </ResponsiveContainer>
           ) : empty('No receipt data yet')}
@@ -165,20 +165,20 @@ export function Dashboard({ outreach, salvage, closet, receipts, donations, salv
           {topDonors.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={topDonors} layout="vertical" margin={{ left: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis type="number" /><YAxis type="category" dataKey="donor" width={110} /><Tooltip />
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis type="number" /><YAxis type="category" dataKey="donor" width={110} /><Tooltip />
                 <Bar dataKey="total" fill="#4f46e5" radius={[0, 4, 4, 0]} /></BarChart>
             </ResponsiveContainer>
           ) : empty('No donation data yet')}
         </div>
         <div className={`${card} p-6`}>
-          <h3 className={`${cardTitle} flex items-center gap-2`}><Activity size={18} className="text-slate-500" /> Recent Activity</h3>
+          <h3 className={`${cardTitle} flex items-center gap-2`}><Activity size={18} className="text-slate-400" /> Recent Activity</h3>
           {activity.length > 0 ? (
             <ul className="text-sm">
               {activity.map((a, i) => (
-                <li key={i} className="flex items-center gap-2 py-1.5 border-b border-slate-100 last:border-0">
+                <li key={i} className="flex items-center gap-2 py-1.5 border-b border-slate-800 last:border-0">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${a.dotCls}`} />
                   <span className="text-slate-400 text-xs w-20 shrink-0">{a.date}</span>
-                  <span className="truncate text-slate-700">{a.text}</span>
+                  <span className="truncate text-slate-200">{a.text}</span>
                 </li>
               ))}
             </ul>

@@ -4,8 +4,8 @@ import { ToastCtx } from './toast-context';
 
 const TOAST_STYLES = {
   success: { icon: CheckCircle2, cls: 'border-emerald-200 bg-emerald-50 text-emerald-800', iconCls: 'text-emerald-500' },
-  error: { icon: AlertCircle, cls: 'border-red-200 bg-red-50 text-red-800', iconCls: 'text-red-500' },
-  info: { icon: Info, cls: 'border-blue-200 bg-blue-50 text-blue-800', iconCls: 'text-blue-500' },
+  error: { icon: AlertCircle, cls: 'border-red-200 bg-red-950/40 text-red-800', iconCls: 'text-red-500' },
+  info: { icon: Info, cls: 'border-blue-200 bg-blue-50 text-blue-800', iconCls: 'text-sky-400' },
 };
 
 export function ToastProvider({ children }) {
@@ -45,7 +45,7 @@ export function Modal({ onClose, children, maxWidth = 'max-w-lg' }) {
   }, [onClose]);
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className={`bg-white rounded-xl shadow-sm border border-slate-200-lg w-full max-h-full overflow-y-auto ${maxWidth}`} onClick={e => e.stopPropagation()}>
+      <div className={`bg-slate-900 rounded-xl shadow-sm border border-slate-700 w-full max-h-full overflow-y-auto ${maxWidth}`} onClick={e => e.stopPropagation()}>
         {children}
       </div>
     </div>

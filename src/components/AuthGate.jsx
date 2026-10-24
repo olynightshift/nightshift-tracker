@@ -50,13 +50,13 @@ export function AuthGate() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200-lg w-full max-w-xs p-6 text-center">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+      <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 w-full max-w-xs p-6 text-center">
         <div className="flex items-center justify-center gap-2 mb-1">
           <Moon size={20} className="text-amber-400" />
-          <h1 className="text-xl font-bold text-slate-800">Olympia Nightshift</h1>
+          <h1 className="text-xl font-bold text-slate-100">Olympia Nightshift</h1>
         </div>
-        <p className="text-sm text-gray-500 mb-6">Enter the crew passcode</p>
+        <p className="text-sm text-slate-400 mb-6">Enter the crew passcode</p>
 
         <div className={`flex justify-center gap-2 mb-3 ${error ? 'animate-pulse' : ''}`}>
           {digits.map((d, i) => (
@@ -73,23 +73,23 @@ export function AuthGate() {
               onKeyDown={e => handleKeyDown(i, e)}
               autoFocus={i === 0}
               className={`w-10 h-12 border-2 rounded-lg text-center text-xl font-bold focus:outline-none transition-colors
-                ${error ? 'border-red-400 bg-red-50' : d ? 'border-sky-500' : 'border-slate-300'}
+                ${error ? 'border-red-400 bg-red-950/40' : d ? 'border-sky-500' : 'border-slate-600'}
                 focus:border-sky-500 disabled:opacity-50`}
             />
           ))}
         </div>
 
-        {busy && <div className="text-sm text-gray-400 flex items-center justify-center gap-1.5 mb-2"><Loader2 size={13} className="animate-spin" /> Checking…</div>}
+        {busy && <div className="text-sm text-slate-500 flex items-center justify-center gap-1.5 mb-2"><Loader2 size={13} className="animate-spin" /> Checking…</div>}
         {error && <div className="text-sm text-red-600 mb-2">Incorrect code — try again.</div>}
 
         <button
           onClick={() => { const next = Array(LENGTH).fill(''); setDigits(next); setError(false); refs.current[0]?.focus(); }}
-          className="text-xs text-gray-400 hover:text-gray-600 inline-flex items-center gap-1 mb-4"
+          className="text-xs text-slate-500 hover:text-slate-400 inline-flex items-center gap-1 mb-4"
         >
           <Delete size={11} /> Clear
         </button>
 
-        <p className="text-xs text-gray-400">This device stays signed in — no code needed next time.</p>
+        <p className="text-xs text-slate-500">This device stays signed in — no code needed next time.</p>
       </div>
     </div>
   );

@@ -95,8 +95,8 @@ export function UndoRedoControls({ compact = false }) {
   const base = compact
     ? 'flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium'
     : 'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium flex-1 justify-center';
-  const on = 'bg-white/10 text-white hover:bg-white/20';
-  const off = 'text-slate-500 cursor-not-allowed';
+  const on = 'bg-slate-900/10 text-white hover:bg-slate-900/20';
+  const off = 'text-slate-400 cursor-not-allowed';
   return (
     <>
       <button onClick={undo} disabled={!canUndo || busy} title={undoLabel ? `Undo: ${undoLabel}` : 'Nothing to undo'} className={`${base} ${canUndo && !busy ? on : off}`}>

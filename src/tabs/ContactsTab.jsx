@@ -48,33 +48,33 @@ export function ContactsTab({ donors, setDonors }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+      <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 className="text-lg font-semibold flex items-center gap-2"><Users size={20} /> Donor Contacts</h2>
           <div className="flex items-center gap-2">
-            <div className="relative"><Search size={14} className="absolute left-2 top-2.5 text-gray-400" />
+            <div className="relative"><Search size={14} className="absolute left-2 top-2.5 text-slate-500" />
               <input type="text" placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)} className="border rounded pl-7 pr-2 py-1 text-sm" /></div>
             <button onClick={() => { setEditingDonor(null); setShowModal(true); }} className="bg-emerald-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-1"><Plus size={14} />Add Donor</button>
-            <button onClick={exportCSV} className="bg-gray-100 px-3 py-1.5 rounded flex items-center gap-1 text-sm"><Download size={16} />Export</button>
+            <button onClick={exportCSV} className="bg-slate-800 px-3 py-1.5 rounded flex items-center gap-1 text-sm"><Download size={16} />Export</button>
           </div>
         </div>
       </div>
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+      <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50"><tr className="text-left border-b"><th className="p-2">Name</th><th>Organization</th><th>Email</th><th>Phone</th><th>Address</th><th></th></tr></thead>
+          <thead className="bg-slate-800"><tr className="text-left border-b"><th className="p-2">Name</th><th>Organization</th><th>Email</th><th>Phone</th><th>Address</th><th></th></tr></thead>
           <tbody>
             {filtered.map(d => (
-              <tr key={d.id} className="border-b hover:bg-gray-50">
+              <tr key={d.id} className="border-b hover:bg-slate-800">
                 <td className="p-2 font-medium">{d.name}</td>
                 <td>{d.organization || '—'}</td><td>{d.email || '—'}</td><td>{d.phone || '—'}</td>
                 <td className="max-w-xs truncate">{d.address || '—'}</td>
                 <td className="flex gap-2 p-2">
-                  <button onClick={() => { setEditingDonor(d); setShowModal(true); }}><Edit2 size={14} className="text-blue-500" /></button>
+                  <button onClick={() => { setEditingDonor(d); setShowModal(true); }}><Edit2 size={14} className="text-sky-400" /></button>
                   <button onClick={() => handleDelete(d)}><Trash2 size={14} className="text-red-500" /></button>
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && <tr><td colSpan="6" className="text-center text-gray-400 py-6">No donors yet.</td></tr>}
+            {filtered.length === 0 && <tr><td colSpan="6" className="text-center text-slate-500 py-6">No donors yet.</td></tr>}
           </tbody>
         </table>
       </div>

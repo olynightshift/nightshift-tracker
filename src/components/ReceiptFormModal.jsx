@@ -98,21 +98,21 @@ export function ReceiptFormModal({ receipt, setReceipts, onClose, onSaved }) {
 
   return (
     <Modal onClose={onClose} maxWidth="max-w-3xl">
-      <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
+      <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-slate-900 z-10">
         <h2 className="text-lg font-semibold flex items-center gap-2"><ReceiptIcon size={20} /> {isEdit ? 'Edit Receipt' : 'Add Receipt'}</h2>
         <button onClick={onClose}><X size={20} /></button>
       </div>
       <div className="p-4 flex flex-col gap-3">
         <div className="flex flex-wrap items-end gap-3">
-          <div><label className="block text-sm text-gray-600 mb-1">Date</label>
+          <div><label className="block text-sm text-slate-400 mb-1">Date</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} className="border rounded px-2 py-1" /></div>
-          <div className="flex-1 min-w-48"><label className="block text-sm text-gray-600 mb-1">Store / Vendor</label>
+          <div className="flex-1 min-w-48"><label className="block text-sm text-slate-400 mb-1">Store / Vendor</label>
             <input type="text" value={store} onChange={e => setStore(e.target.value)} placeholder="e.g. Costco" className="border rounded px-2 py-1 w-full" /></div>
         </div>
 
-        <div className="border rounded p-3 bg-gray-50">
+        <div className="border rounded p-3 bg-slate-800">
           <div className="flex items-center gap-3 flex-wrap">
-            <label className="flex items-center gap-1 cursor-pointer bg-white border rounded px-3 py-1.5 text-sm hover:bg-gray-50">
+            <label className="flex items-center gap-1 cursor-pointer bg-slate-900 border rounded px-3 py-1.5 text-sm hover:bg-slate-800">
               <Camera size={14} /> {image ? 'Replace Photo' : 'Attach Photo'}
               <input type="file" accept="image/*" onChange={handleImage} className="hidden" />
             </label>
@@ -122,10 +122,10 @@ export function ReceiptFormModal({ receipt, setReceipts, onClose, onSaved }) {
               </button>
             )}
             {image && <img src={image} alt="receipt" className="h-20 rounded border" />}
-            {ocrText && <button onClick={() => setShowOcrText(s => !s)} className="text-xs text-blue-600 underline">{showOcrText ? 'Hide' : 'Show'} raw text</button>}
+            {ocrText && <button onClick={() => setShowOcrText(s => !s)} className="text-xs text-sky-400 underline">{showOcrText ? 'Hide' : 'Show'} raw text</button>}
           </div>
-          {showOcrText && <pre className="text-xs mt-2 bg-white border p-2 rounded max-h-40 overflow-auto whitespace-pre-wrap">{ocrText}</pre>}
-          <div className="text-xs text-gray-500 mt-2">Tip: OCR is best with a clear, well-lit photo. You can edit anything it misreads.</div>
+          {showOcrText && <pre className="text-xs mt-2 bg-slate-900 border p-2 rounded max-h-40 overflow-auto whitespace-pre-wrap">{ocrText}</pre>}
+          <div className="text-xs text-slate-400 mt-2">Tip: OCR is best with a clear, well-lit photo. You can edit anything it misreads.</div>
         </div>
 
         <div className="flex flex-col gap-2">
@@ -140,29 +140,29 @@ export function ReceiptFormModal({ receipt, setReceipts, onClose, onSaved }) {
               <button onClick={() => removeItemRow(i)} title="Remove"><Trash2 size={16} className="text-red-500" /></button>
             </div>
           ))}
-          <button onClick={addItemRow} className="text-sm text-blue-600 flex items-center gap-1 w-fit"><Plus size={14} />Add Item</button>
+          <button onClick={addItemRow} className="text-sm text-sky-400 flex items-center gap-1 w-fit"><Plus size={14} />Add Item</button>
           <div className="text-xs text-slate-400 -mt-1">Tip: tax lines are folded into the Tax field automatically — no need to enter them as items.</div>
         </div>
 
-        <div className="flex flex-wrap items-end gap-3 border rounded p-3 bg-amber-50/50 border-amber-200">
+        <div className="flex flex-wrap items-end gap-3 border rounded p-3 bg-amber-950/30 border-amber-800">
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Tax</label>
+            <label className="block text-sm text-slate-400 mb-1">Tax</label>
             <div className="flex items-center gap-1">
-              <span className="text-sm text-gray-500">$</span>
+              <span className="text-sm text-slate-400">$</span>
               <input type="number" step="0.01" min="0" placeholder="0.00" value={tax} onChange={e => setTax(e.target.value)} className="border rounded px-2 py-1 w-28" />
             </div>
           </div>
-          <div className="text-xs text-amber-700 pb-1">Sales tax for this receipt, kept separate from spending categories. OCR fills this in when it can read it.</div>
+          <div className="text-xs text-amber-400 pb-1">Sales tax for this receipt, kept separate from spending categories. OCR fills this in when it can read it.</div>
         </div>
 
         <div className="text-right text-sm space-y-0.5">
-          <div className="text-gray-500">Items subtotal: ${subtotal.toFixed(2)}</div>
+          <div className="text-slate-400">Items subtotal: ${subtotal.toFixed(2)}</div>
           <div className="text-amber-600">Tax: ${((Number(tax) || 0) + foldedTax).toFixed(2)}</div>
           <div className="font-medium">Total: ${totalCost.toFixed(2)}</div>
         </div>
       </div>
-      <div className="flex justify-end gap-2 p-4 border-t bg-gray-50 sticky bottom-0">
-        <button onClick={onClose} className="px-4 py-1.5 rounded border bg-white">Cancel</button>
+      <div className="flex justify-end gap-2 p-4 border-t bg-slate-800 sticky bottom-0">
+        <button onClick={onClose} className="px-4 py-1.5 rounded border bg-slate-900">Cancel</button>
         <button onClick={save} disabled={saving} className="px-4 py-1.5 rounded bg-indigo-600 text-white disabled:opacity-50 flex items-center gap-1">
           <Save size={14} />{saving ? 'Saving…' : (isEdit ? 'Update Receipt' : 'Save Receipt')}
         </button>

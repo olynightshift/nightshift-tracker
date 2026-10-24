@@ -176,11 +176,11 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
                 });
                 if (ok) { setEditingId(null); toast('Entry updated.', 'success'); }
               }}><Save size={14} className="text-green-500" /></button>
-              <button onClick={() => setEditingId(null)}><X size={14} className="text-gray-500" /></button>
+              <button onClick={() => setEditingId(null)}><X size={14} className="text-slate-400" /></button>
             </>
           ) : (
             <>
-              <button onClick={() => { setEditingId(e.id); setEditBuffer({ ...e, quantities: { ...e.quantities } }); }}><Edit2 size={14} className="text-blue-500" /></button>
+              <button onClick={() => { setEditingId(e.id); setEditBuffer({ ...e, quantities: { ...e.quantities } }); }}><Edit2 size={14} className="text-sky-400" /></button>
               <button onClick={() => deleteEntry(e)}><Trash2 size={14} className="text-red-500" /></button>
             </>
           )}
@@ -193,10 +193,10 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+      <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4">
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Icon size={20} /> {config.title}</h2>
         <div className="mb-3">
-          <div className="text-sm text-gray-600 mb-1">Item types:</div>
+          <div className="text-sm text-slate-400 mb-1">Item types:</div>
           <div className="flex flex-wrap gap-2">
             {itemTypes.map(t => (
               <span key={t} className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full border ${config.chipCls}`}>
@@ -210,9 +210,9 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
           <button onClick={addItemType} className={`${config.btnCls} text-white px-3 py-1.5 rounded text-sm flex items-center gap-1`}><Plus size={14} />Add Type</button>
         </div>
         <div className="flex flex-wrap items-end gap-4">
-          <div><label className="block text-sm text-gray-600 mb-1">Date</label>
+          <div><label className="block text-sm text-slate-400 mb-1">Date</label>
             <input type="date" value={formDate} onChange={e => setFormDate(e.target.value)} className="border rounded px-2 py-1" /></div>
-          <div><label className="block text-sm text-gray-600 mb-1 flex items-center gap-1"><Users size={14} /> {config.contactLabel}</label>
+          <div><label className="block text-sm text-slate-400 mb-1 flex items-center gap-1"><Users size={14} /> {config.contactLabel}</label>
             <div className="flex items-center gap-1">
               <select value={formDonorId} onChange={e => setFormDonorId(e.target.value)} className="border rounded px-2 py-1 min-w-40">
                 <option value="">— Anonymous —</option>
@@ -222,24 +222,24 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
             </div>
           </div>
           {itemTypes.map(t => (
-            <div key={t}><label className="block text-sm text-gray-600 mb-1">{t}</label>
+            <div key={t}><label className="block text-sm text-slate-400 mb-1">{t}</label>
               <input type="number" min="0" step="any" value={formQuantities[t] ?? ''} onChange={e => setFormQuantities(prev => ({ ...prev, [t]: e.target.value }))} className="border rounded px-2 py-1 w-24" /></div>
           ))}
           <button onClick={saveEntry} className={`${config.btnCls} text-white px-4 py-1.5 rounded flex items-center gap-1`}><Plus size={16} />Add Entry</button>
-          <button onClick={exportCSV} className="ml-auto bg-gray-100 px-3 py-1.5 rounded flex items-center gap-1 text-sm"><Download size={16} />Export CSV</button>
+          <button onClick={exportCSV} className="ml-auto bg-slate-800 px-3 py-1.5 rounded flex items-center gap-1 text-sm"><Download size={16} />Export CSV</button>
         </div>
       </div>
 
       <div className="flex gap-2">
         {['week', 'month', 'year', 'all'].map(v => (
-          <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 rounded text-sm ${view === v ? `${config.btnCls} text-white` : 'bg-white border'}`}>
+          <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 rounded text-sm ${view === v ? `${config.btnCls} text-white` : 'bg-slate-900 border'}`}>
             {v === 'week' ? 'Week' : v === 'month' ? 'Month' : v === 'year' ? 'Year' : 'All Time'}
           </button>
         ))}
       </div>
 
       {view === 'week' && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 overflow-x-auto">
+        <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4 overflow-x-auto">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setWeekAnchor(addDays(weekStart, -7))}><ChevronLeft /></button>
             <span className="font-medium text-sm">{toISO(weekStart)} — {toISO(addDays(weekStart, 6))}</span>
@@ -249,14 +249,14 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
             <thead><tr className="text-left border-b"><th className="py-1">Date</th><th>{config.contactLabel}</th>{itemTypes.map(t => <th key={t}>{t}</th>)}<th></th></tr></thead>
             <tbody>
               {weekEntries.sort((a, b) => a.date.localeCompare(b.date)).map(e => renderRow(e))}
-              {weekEntries.length === 0 && <tr><td colSpan={itemTypes.length + 3} className="text-center text-gray-400 py-3">No entries this week</td></tr>}
+              {weekEntries.length === 0 && <tr><td colSpan={itemTypes.length + 3} className="text-center text-slate-500 py-3">No entries this week</td></tr>}
             </tbody>
           </table>
         </div>
       )}
 
       {view === 'month' && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setMonthAnchor(new Date(monthYear, monthIdx - 1, 1))}><ChevronLeft /></button>
             <span className="font-medium">{MONTHS[monthIdx]} {monthYear}</span>
@@ -264,7 +264,7 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={sumQuantitiesByDayInMonth(entries, monthYear, monthIdx, chartItemTypes)}>
-              <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="day" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis dataKey="day" tick={{ fill: '#94a3b8', fontSize: 11 }} /><YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} /><Tooltip /><Legend wrapperStyle={{ color: '#94a3b8' }} />
               {chartItemTypes.map((t, i) => <Bar key={t} dataKey={t} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
             </BarChart>
           </ResponsiveContainer>
@@ -276,14 +276,14 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
       )}
 
       {view === 'year' && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4">
           <div className="flex items-center justify-between mb-3">
             <button onClick={() => setYearSelected(y => y - 1)}><ChevronLeft /></button>
             <span className="font-medium">{yearSelected}</span>
             <button onClick={() => setYearSelected(y => y + 1)}><ChevronRight /></button>
           </div>
           <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={yearData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
+            <BarChart data={yearData}><CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis dataKey="month" tick={{ fill: '#94a3b8', fontSize: 11 }} /><YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} /><Tooltip /><Legend wrapperStyle={{ color: '#94a3b8' }} />
               {chartItemTypes.map((t, i) => <Bar key={t} dataKey={t} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}</BarChart>
           </ResponsiveContainer>
         </div>
@@ -292,39 +292,39 @@ export function QuantitiesTab({ config, entries, setEntries, itemTypes, setItemT
       {view === 'all' && (
         <div className="grid md:grid-cols-2 gap-4">
           {weightType && (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:col-span-2 flex items-center justify-between flex-wrap gap-2">
+            <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4 md:col-span-2 flex items-center justify-between flex-wrap gap-2">
               <div>
-                <div className="text-xs text-gray-500 uppercase tracking-wide">Total {weightType} collected (all time)</div>
-                <div className="text-2xl font-bold">{totalWeight.toLocaleString()} <span className="text-sm font-normal text-gray-500">lbs</span></div>
+                <div className="text-xs text-slate-400 uppercase tracking-wide">Total {weightType} collected (all time)</div>
+                <div className="text-2xl font-bold">{totalWeight.toLocaleString()} <span className="text-sm font-normal text-slate-400">lbs</span></div>
               </div>
-              <div className="text-xs text-gray-400">Weight is tracked separately from item counts in all charts.</div>
+              <div className="text-xs text-slate-500">Weight is tracked separately from item counts in all charts.</div>
             </div>
           )}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4">
             <h3 className="font-medium mb-2">Split by Item Type</h3>
             {pieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart><Pie data={pieData} dataKey="value" nameKey="name" outerRadius={90} label>
-                  {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}</Pie><Tooltip /><Legend /></PieChart>
+                  {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}</Pie><Tooltip /><Legend wrapperStyle={{ color: '#94a3b8' }} /></PieChart>
               </ResponsiveContainer>
-            ) : <div className="text-gray-400 py-8 text-center text-sm">No {config.noun.toLowerCase()} yet</div>}
+            ) : <div className="text-slate-500 py-8 text-center text-sm">No {config.noun.toLowerCase()} yet</div>}
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4">
             <h3 className="font-medium mb-2">By Year</h3>
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={allYearData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="year" /><YAxis allowDecimals={false} /><Tooltip /><Legend />
+              <BarChart data={allYearData}><CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis dataKey="year" tick={{ fill: '#94a3b8', fontSize: 11 }} /><YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} /><Tooltip /><Legend wrapperStyle={{ color: '#94a3b8' }} />
                 {chartItemTypes.map((t, i) => <Bar key={t} dataKey={t} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}</BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:col-span-2">
+          <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 p-4 md:col-span-2">
             <h3 className="font-medium mb-2">Top {config.contactLabel}s (by total items)</h3>
             {topContacts.length > 0 ? (
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={topContacts} layout="vertical" margin={{ left: 40 }}>
-                  <CartesianGrid strokeDasharray="3 3" /><XAxis type="number" /><YAxis type="category" dataKey="contact" width={120} /><Tooltip />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 11 }} /><YAxis type="category" dataKey="contact" width={120} tick={{ fill: '#94a3b8', fontSize: 11 }} /><Tooltip />
                   <Bar dataKey="total" fill={config.topBarColor} /></BarChart>
               </ResponsiveContainer>
-            ) : <div className="text-gray-400 py-4 text-center text-sm">No {config.contactLabel.toLowerCase()} data yet</div>}
+            ) : <div className="text-slate-500 py-4 text-center text-sm">No {config.contactLabel.toLowerCase()} data yet</div>}
           </div>
         </div>
       )}

@@ -102,7 +102,7 @@ export const api = {
   receipts: {
     async load() {
       const [receiptsRes, itemsRes] = await Promise.all([
-        supabase.from(TABLES.receipts).select('id, date, store, image_url'),
+        supabase.from(TABLES.receipts).select('id, date, store, image_url, tax'),
         supabase.from(TABLES.receiptItems).select('id, receipt_id, item_name, category, cost'),
       ]);
       if (receiptsRes.error) throw receiptsRes.error;
@@ -113,10 +113,10 @@ export const api = {
         itemsByReceipt[it.receipt_id].push({ id: it.id, name: it.item_name, category: it.category, cost: Number(it.cost) || 0 });
       });
       Object.values(itemsByReceipt).forEach(list => list.sort((a, b) => a.id - b.id));
-      return (receiptsRes.data || []).map(r => ({ id: r.id, date: r.date, store: r.store, image: r.image_url || null, items: itemsByReceipt[r.id] || [] }));
+      return (receiptsRes.data || []).map(r => ({ id: r.id, date: r.date, store: r.store, image: r.image_url || null, tax: Number(r.tax) || 0, items: itemsByReceipt[r.id] || [] }));
     },
     async insert(row) {
-      const { data: rec, error } = await supabase.from(TABLES.receipts).insert({ date: row.date, store: row.store, image_url: row.image || null }).select('id').single();
+      const { data: rec, error } = await supabase.from(TABLES.receipts).insert({ date: row.date, store: row.store, image_url: row.image || null, tax: Number(row.tax) || 0 }).select('id').single();
       if (error) throw error;
       const items = (row.items || []).map(it => ({ receipt_id: rec.id, item_name: it.name, category: it.category || 'Other', cost: Number(it.cost) || 0 }));
       if (items.length > 0) {
@@ -126,7 +126,7 @@ export const api = {
       return rec.id;
     },
     async update(row) {
-      const { error } = await supabase.from(TABLES.receipts).update({ date: row.date, store: row.store, image_url: row.image || null }).eq('id', row.id);
+      const { error } = await supabase.from(TABLES.receipts).update({ date: row.date, store: row.store, image_url: row.image || null, tax: Number(row.tax) || 0 }).eq('id', row.id);
       if (error) throw error;
       await supabase.from(TABLES.receiptItems).delete().eq('receipt_id', row.id);
       const items = (row.items || []).map(it => ({ receipt_id: row.id, item_name: it.name, category: it.category || 'Other', cost: Number(it.cost) || 0 }));

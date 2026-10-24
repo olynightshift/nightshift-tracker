@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Receipt as ReceiptIcon, Camera, ScanLine, X, Trash2, Plus, Save } from 'lucide-react';
 import { api } from '../api';
-import { RECEIPT_CATEGORIES, todayISO } from '../lib/core';
+import { RECEIPT_CATEGORIES, todayISO, isTaxLineItem } from '../lib/core';
 import { runOCR, parseReceiptText } from '../lib/receipts';
 import { Modal } from './ui';
 import { useToast } from './toast-context';
@@ -15,6 +15,7 @@ export function ReceiptFormModal({ receipt, setReceipts, onClose, onSaved }) {
   const [date, setDate] = useState(receipt?.date || todayISO);
   const [store, setStore] = useState(receipt?.store || '');
   const [items, setItems] = useState(receipt?.items ? receipt.items.map(it => ({ ...it, cost: String(it.cost) })) : [{ name: '', cost: '', category: 'Other' }]);
+  const [tax, setTax] = useState(receipt?.tax ? String(receipt.tax) : '');
   const [image, setImage] = useState(receipt?.image || null);
   const [saving, setSaving] = useState(false);
   const [ocrRunning, setOcrRunning] = useState(false);
@@ -51,6 +52,7 @@ export function ReceiptFormModal({ receipt, setReceipts, onClose, onSaved }) {
       } else {
         toast('OCR finished but no items were parsed. Check the raw text — you can still add items manually.', 'info');
       }
+      if (parsed.tax != null) setTax(parsed.tax);
     } catch (err) {
       toast('OCR failed: ' + (err.message || err), 'error');
     } finally {
@@ -60,11 +62,14 @@ export function ReceiptFormModal({ receipt, setReceipts, onClose, onSaved }) {
 
   async function save() {
     if (!store.trim()) { toast('Enter a store name.', 'error'); return; }
-    const cleanItems = items.filter(it => (it.name || '').trim() || Number(it.cost) > 0)
+    // Tax-named lines fold into the tax field — they are never purchased items.
+    const taxLinesTotal = items.reduce((s, it) => s + (isTaxLineItem(it) ? (Number(it.cost) || 0) : 0), 0);
+    const cleanItems = items.filter(it => ((it.name || '').trim() || Number(it.cost) > 0) && !isTaxLineItem(it))
       .map(it => ({ name: (it.name || '').trim(), cost: Number(it.cost) || 0, category: it.category || 'Other' }));
-    if (cleanItems.length === 0) { toast('Add at least one item.', 'error'); return; }
+    if (cleanItems.length === 0 && !(Number(tax) > 0)) { toast('Add at least one item.', 'error'); return; }
+    const totalTax = (Number(tax) || 0) + taxLinesTotal;
     setSaving(true);
-    const row = { date, store: store.trim(), image, items: cleanItems };
+    const row = { date, store: store.trim(), image, tax: totalTax, items: cleanItems };
     let createdId = null;
     const ok = await runAction({
       label: isEdit ? 'Update receipt' : 'Save receipt',
@@ -87,7 +92,9 @@ export function ReceiptFormModal({ receipt, setReceipts, onClose, onSaved }) {
     if (ok) { toast(isEdit ? 'Receipt updated.' : 'Receipt saved.', 'success'); onClose(); }
   }
 
-  const totalCost = items.reduce((s, it) => s + (Number(it.cost) || 0), 0);
+  const subtotal = items.reduce((s, it) => s + (isTaxLineItem(it) ? 0 : (Number(it.cost) || 0)), 0);
+  const foldedTax = items.reduce((s, it) => s + (isTaxLineItem(it) ? (Number(it.cost) || 0) : 0), 0);
+  const totalCost = subtotal + (Number(tax) || 0) + foldedTax;
 
   return (
     <Modal onClose={onClose} maxWidth="max-w-3xl">
@@ -134,9 +141,25 @@ export function ReceiptFormModal({ receipt, setReceipts, onClose, onSaved }) {
             </div>
           ))}
           <button onClick={addItemRow} className="text-sm text-blue-600 flex items-center gap-1 w-fit"><Plus size={14} />Add Item</button>
+          <div className="text-xs text-slate-400 -mt-1">Tip: tax lines are folded into the Tax field automatically — no need to enter them as items.</div>
         </div>
 
-        <div className="text-right text-sm font-medium">Total: ${totalCost.toFixed(2)}</div>
+        <div className="flex flex-wrap items-end gap-3 border rounded p-3 bg-amber-50/50 border-amber-200">
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Tax</label>
+            <div className="flex items-center gap-1">
+              <span className="text-sm text-gray-500">$</span>
+              <input type="number" step="0.01" min="0" placeholder="0.00" value={tax} onChange={e => setTax(e.target.value)} className="border rounded px-2 py-1 w-28" />
+            </div>
+          </div>
+          <div className="text-xs text-amber-700 pb-1">Sales tax for this receipt, kept separate from spending categories. OCR fills this in when it can read it.</div>
+        </div>
+
+        <div className="text-right text-sm space-y-0.5">
+          <div className="text-gray-500">Items subtotal: ${subtotal.toFixed(2)}</div>
+          <div className="text-amber-600">Tax: ${((Number(tax) || 0) + foldedTax).toFixed(2)}</div>
+          <div className="font-medium">Total: ${totalCost.toFixed(2)}</div>
+        </div>
       </div>
       <div className="flex justify-end gap-2 p-4 border-t bg-gray-50 sticky bottom-0">
         <button onClick={onClose} className="px-4 py-1.5 rounded border bg-white">Cancel</button>

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Receipt as ReceiptIcon, Plus, Download, List, Grid3x3, Search, FileText, ChevronLeft, ChevronRight, Tag, Store, DollarSign, Edit2, Trash2 } from 'lucide-react';
 import { BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { api } from '../api';
-import { RECEIPT_CATEGORIES, PIE_COLORS, downloadCSV, receiptTotal, sumReceiptsByStore, sumReceiptsByCategory } from '../lib/core';
+import { RECEIPT_CATEGORIES, PIE_COLORS, downloadCSV, receiptTotal, receiptSubtotal, receiptTax, sumReceiptTax, isTaxLineItem, sumReceiptsByStore, sumReceiptsByCategory } from '../lib/core';
 import { buildItemCatalogue } from '../lib/receipts';
 import { ReceiptFormModal } from '../components/ReceiptFormModal';
 import { useToast } from '../components/toast-context';
@@ -58,6 +58,7 @@ export function ReceiptsTab({ receipts, setReceipts }) {
       if (dateFrom && r.date < dateFrom) return;
       if (dateTo && r.date > dateTo) return;
       r.items.forEach(it => {
+        if (isTaxLineItem(it)) return;
         if (category !== 'All' && it.category !== category) return;
         if (itemQ && !(it.name || '').toLowerCase().includes(itemQ.toLowerCase())) return;
         const cost = Number(it.cost) || 0;
@@ -107,7 +108,7 @@ export function ReceiptsTab({ receipts, setReceipts }) {
   function exportReceiptsCSV() {
     const rows = [];
     filteredReceipts.forEach(r => r.items.forEach(it => rows.push({
-      Date: r.date, Store: r.store, Item: it.name, Category: it.category, Cost: Number(it.cost).toFixed(2),
+      Date: r.date, Store: r.store, Item: it.name, Category: it.category, Cost: Number(it.cost).toFixed(2), Tax: Number(r.tax) || 0,
     })));
     downloadCSV('receipts_filtered.csv', rows.sort((a, b) => a.Date.localeCompare(b.Date)));
   }
@@ -127,6 +128,7 @@ export function ReceiptsTab({ receipts, setReceipts }) {
 
   // Reports data
   const totalSpent = filteredReceipts.reduce((s, r) => s + receiptTotal(r), 0);
+  const totalTax = sumReceiptTax(filteredReceipts);
   const storeData = sumReceiptsByStore(filteredReceipts);
   const categoryData = sumReceiptsByCategory(filteredReceipts);
   const monthMap = {};
@@ -213,7 +215,11 @@ export function ReceiptsTab({ receipts, setReceipts }) {
                         <div>
                           <div className="text-lg font-semibold">{focusedReceipt.store}</div>
                           <div className="text-sm text-gray-500">{focusedReceipt.date}</div>
-                          <div className="text-sm font-medium mt-1">Total: ${receiptTotal(focusedReceipt).toFixed(2)}</div>
+                          <div className="text-sm mt-2 space-y-0.5 text-right">
+                            <div className="text-gray-500">Subtotal: ${receiptSubtotal(focusedReceipt).toFixed(2)}</div>
+                            <div className="text-amber-600">Tax: ${receiptTax(focusedReceipt).toFixed(2)}</div>
+                            <div className="font-medium">Total: ${receiptTotal(focusedReceipt).toFixed(2)}</div>
+                          </div>
                         </div>
                         <div className="flex gap-2">
                           <button onClick={() => { setEditingReceipt(focusedReceipt); setShowModal(true); }} title="Edit"><Edit2 size={16} className="text-blue-500" /></button>
@@ -359,9 +365,13 @@ export function ReceiptsTab({ receipts, setReceipts }) {
       {/* ---------- REPORTS ---------- */}
       {view === 'reports' && (
         <div className="grid md:grid-cols-2 gap-4">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:col-span-2 text-center">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 text-center">
             <div className="text-3xl font-bold">${totalSpent.toFixed(2)}</div>
-            <div className="text-sm text-gray-500">Total across {filteredReceipts.length} receipts (filtered)</div>
+            <div className="text-sm text-gray-500">Total across {filteredReceipts.length} receipts (filtered, incl. tax)</div>
+          </div>
+          <div className="bg-amber-50 rounded-xl shadow-sm border border-amber-200 p-4 text-center">
+            <div className="text-3xl font-bold text-amber-600">${totalTax.toFixed(2)}</div>
+            <div className="text-sm text-amber-700">Sales tax paid — kept separate from spending categories</div>
           </div>
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
             <h3 className="font-medium mb-2">By Store</h3>
@@ -374,7 +384,7 @@ export function ReceiptsTab({ receipts, setReceipts }) {
             ) : <div className="text-gray-400 py-8 text-center text-sm">No data</div>}
           </div>
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-            <h3 className="font-medium mb-2">By Category</h3>
+            <h3 className="font-medium mb-2">By Category <span className="text-xs font-normal text-gray-400">(tax excluded — shown above)</span></h3>
             {categoryData.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart><Pie data={categoryData} dataKey="total" nameKey="category" outerRadius={90} label>

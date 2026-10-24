@@ -1,6 +1,6 @@
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Activity, CalendarCheck, Coffee, Weight, Package, Users, Gift, ContactRound, DollarSign } from 'lucide-react';
-import { groupOutreachByMonth, receiptTotal, sumQuantitiesAllTime, sumReceiptsByCategory, toISO, addDays, PIE_COLORS } from '../lib/core';
+import { groupOutreachByMonth, receiptTotal, sumQuantitiesAllTime, sumReceiptsByCategory, sumReceiptTax, toISO, addDays, PIE_COLORS } from '../lib/core';
 
 // ============================================================
 // Dashboard — stat cards + analytics in the classic style:
@@ -47,6 +47,7 @@ export function Dashboard({ outreach, salvage, closet, receipts, donations, salv
   const monthTrend = Object.entries(monthMap).sort((a, b) => a[0].localeCompare(b[0])).map(([month, total]) => ({ month, total }));
 
   const catData = sumReceiptsByCategory(receipts).filter(c => c.total > 0).sort((a, b) => b.total - a.total);
+  const totalTax = sumReceiptTax(receipts);
 
   const donorTotals = {};
   donations.forEach(e => {
@@ -133,6 +134,9 @@ export function Dashboard({ outreach, salvage, closet, receipts, donations, salv
               </Pie><Tooltip /></PieChart>
             </ResponsiveContainer>
           ) : empty('No receipt data yet')}
+          <div className="text-xs text-amber-600 border-t border-amber-100 pt-2 mt-1">
+            Sales tax is tracked separately: ${totalTax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} all time
+          </div>
         </div>
       </div>
 

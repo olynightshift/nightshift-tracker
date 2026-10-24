@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Calendar, Recycle, Gift, ContactRound, Shirt, Receipt as ReceiptIcon, Moon, Database, WifiOff, LogOut, RefreshCw } from 'lucide-react';
+import { LayoutDashboard, BarChart3, Calendar, Recycle, Gift, ContactRound, Shirt, Receipt as ReceiptIcon, Moon, Database, WifiOff, LogOut, RefreshCw } from 'lucide-react';
 import { supabase } from './lib/core';
 import { api } from './api';
 import { useCollection } from './hooks/useCollection';
@@ -8,6 +8,7 @@ import { AuthGate } from './components/AuthGate';
 import { UndoProvider, UndoRedoControls } from './components/UndoProvider';
 import { ConfirmProvider } from './components/ConfirmProvider';
 import { Dashboard } from './tabs/Dashboard';
+import { ReportsTab } from './tabs/ReportsTab';
 import { OutreachTab } from './tabs/OutreachTab';
 import { SalvageTab } from './tabs/SalvageTab';
 import { DonationTab } from './tabs/DonationTab';
@@ -99,6 +100,7 @@ function MainApp({ session }) {
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'reports', label: 'Reports & Analytics', icon: BarChart3 },
     { id: 'outreach', label: 'Outreach Calendar', icon: Calendar },
     { id: 'salvage', label: 'Salvage Tracker', icon: Recycle },
     { id: 'donations', label: 'Donations', icon: Gift },
@@ -176,6 +178,7 @@ function MainApp({ session }) {
 
         <main className="p-4 md:p-8 w-full">
           {tab === 'dashboard' && <Dashboard outreach={outreach} salvage={salvage} closet={closet} receipts={receipts} donations={donations} salvageItemTypes={salvageItemTypes} donationItemTypes={donationItemTypes} donors={donors} />}
+          {tab === 'reports' && <ReportsTab outreach={outreach} salvage={salvage} closet={closet} receipts={receipts} donations={donations} salvageItemTypes={salvageItemTypes} donationItemTypes={donationItemTypes} donors={donors} />}
           {tab === 'outreach' && <OutreachTab entries={outreach} setEntries={setOutreach} />}
           {tab === 'salvage' && <SalvageTab entries={salvage} setEntries={setSalvage} itemTypes={salvageItemTypes} setItemTypes={setSalvageItemTypes} donors={donors} setDonors={setDonors} />}
           {tab === 'donations' && <DonationTab entries={donations} setEntries={setDonations} itemTypes={donationItemTypes} setItemTypes={setDonationItemTypes} donors={donors} setDonors={setDonors} />}

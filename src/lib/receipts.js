@@ -1,4 +1,4 @@
-import { toISO } from './core';
+import { toISO, isTaxLineItem } from './core';
 
 // ---------- Receipt OCR + parsing ----------
 export async function runOCR(imageDataUrl, onProgress) {
@@ -35,6 +35,14 @@ export function parseReceiptText(text) {
       if (!isNaN(parsed.getTime())) { date = toISO(parsed); break; }
     }
   }
+  // Tax — its own thing, never a line item. Lines like "TAX 1.24",
+  // "SALES TAX 8.99", "WA STATE TAX: 0.27".
+  let tax = null;
+  const taxRegex = /tax(?:es)?\b[^0-9]*\$?(\d{1,5}\.\d{2})\s*$/i;
+  for (const line of rawLines) {
+    const tm = line.replace(/[|:]/g, ' ').match(taxRegex);
+    if (tm) { tax = tm[1]; break; }
+  }
   // Items — line ends with price
   const skipRegex = /^(sub[\s-]?total|total|tax|change|cash|credit|debit|visa|mastercard|amex|balance|tender|amount\s*(due|paid)?|payment|tip|discount|savings|rounding|auth|approved)\b/i;
   const priceRegex = /^(.+?)\s+\$?-?(\d{1,5}\.\d{2})\s*$/;
@@ -46,15 +54,19 @@ export function parseReceiptText(text) {
     const cost = Number(m[2]);
     if (!name || cost <= 0) continue;
     if (skipRegex.test(name)) continue;
+    if (/\btax(?:es)?\b/i.test(name)) continue; // any tax-like line is never an item
     if (name.length < 2) continue;
     items.push({ name, cost: String(cost.toFixed(2)), category: guessCategory(name) });
   }
-  return { store, date, items };
+  return { store, date, items, tax };
 }
 
 export function guessCategory(name) {
   const n = name.toLowerCase();
-  if (/\b(coffee|cafe|donut|bagel|sandwich|burger|pizza|food|meal|snack|chip|soda|water|milk|bread|sugar|cream)\b/.test(n)) return 'Food & Coffee';
+  // Outreach coffee supplies — the only food bought for outreach runs.
+  if (/\b(coffee|caffe|k\-?cups?|decaf|brew|creamer|sugar|\bcups?\b|\blids?\b|stirr?ers?|straws?|filters?|carafe|thermos)\b/.test(n)) return 'Food — Coffee Supplies';
+  // Everything else edible is usually for the crew.
+  if (/\b(donut|bagel|sandwich|burger|pizza|food|meal|combo|snack|chips?|soda|drinks?|power\s?ade|gatorade|water|milk|bread|breakfast|lunch|dinner|taco|burrito|cookie|pastry|fruit|apple|banana|orange)\b/.test(n)) return 'Food — Employee/Volunteer';
   if (/\b(detergent|soap|bleach|cleaner|wipes|spray|disinfect|mop|broom|sponge|trash|bag)\b/.test(n)) return 'Cleaning Supplies';
   if (/\b(laundry|wash|dryer|fabric|softener)\b/.test(n)) return 'Laundry';
   if (/\b(gas|fuel|diesel|unleaded|parking|toll)\b/.test(n)) return 'Fuel/Transportation';
@@ -70,6 +82,7 @@ export function buildItemCatalogue(receipts) {
   const map = {};
   receipts.forEach(r => {
     (r.items || []).forEach(it => {
+      if (isTaxLineItem(it)) return; // tax is not a purchased item
       const key = (it.name || '').toLowerCase().trim();
       if (!key) return;
       if (!map[key]) map[key] = { key, name: it.name, purchases: [], totalSpent: 0, count: 0, categories: new Set(), stores: new Set() };

@@ -25,7 +25,11 @@ export const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 export const todayISO = toISO(new Date());
 export const PIE_COLORS = ['#8b5cf6','#14b8a6','#f59e0b','#3b82f6','#22c55e','#ec4899','#ef4444','#6366f1','#84cc16','#06b6d4'];
 
-export const RECEIPT_CATEGORIES = ['Cleaning Supplies','Laundry','Food & Coffee','Fuel/Transportation','Vehicle Maintenance','Office Supplies','Blankets/Clothing Purchase','Utilities','Other'];
+// Food splits three ways: crew meals vs. outreach coffee supplies vs. other food.
+// Tax is NOT a spending category — it lives in receipts.tax and is displayed
+// separately from category totals everywhere.
+export const RECEIPT_CATEGORIES = ['Food — Employee/Volunteer','Food — Coffee Supplies','Food — Other','Cleaning Supplies','Laundry','Fuel/Transportation','Vehicle Maintenance','Office Supplies','Blankets/Clothing Purchase','Utilities','Other'];
+export const TAX_NAME_REGEX = /(^|\s)(sales|state|wa|city|county|excise)?\s*tax(es)?(\s|$)/i;
 
 export function downloadCSV(filename, rows) {
   if (!rows || rows.length === 0) { alert('No data to export yet.'); return; }
@@ -68,7 +72,12 @@ export function groupOutreachByYear(entries) {
   });
   return Object.values(map).sort((a, b) => a.year - b.year);
 }
-export function receiptTotal(r) { return r.items.reduce((s, it) => s + (Number(it.cost) || 0), 0); }
+export function receiptSubtotal(r) { return r.items.reduce((s, it) => s + (Number(it.cost) || 0), 0); }
+export function receiptTax(r) { return Number(r.tax) || 0; }
+export function receiptTotal(r) { return receiptSubtotal(r) + receiptTax(r); }
+// Line items that are really tax in disguise (legacy/manual entry) — used to
+// fold them into the tax field instead of treating them as purchased items.
+export function isTaxLineItem(it) { return TAX_NAME_REGEX.test(it.name || ''); }
 export function sumReceiptsByStore(receipts) {
   const map = {};
   receipts.forEach(r => { map[r.store] = (map[r.store] || 0) + receiptTotal(r); });
@@ -77,10 +86,14 @@ export function sumReceiptsByStore(receipts) {
 export function sumReceiptsByCategory(receipts) {
   const map = {};
   receipts.forEach(r => r.items.forEach(it => {
+    if (isTaxLineItem(it)) return; // tax never counts as a spending category
     const cat = it.category || 'Other';
     map[cat] = (map[cat] || 0) + (Number(it.cost) || 0);
   }));
   return Object.entries(map).map(([category, total]) => ({ category, total }));
+}
+export function sumReceiptTax(receipts) {
+  return receipts.reduce((s, r) => s + receiptTax(r) + r.items.reduce((ss, it) => ss + (isTaxLineItem(it) ? (Number(it.cost) || 0) : 0), 0), 0);
 }
 export function sumByDayInMonth(entries, year, month, keys) {
   const map = {};

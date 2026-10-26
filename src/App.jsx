@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, BarChart3, Calendar, Recycle, Gift, ContactRound, Shirt, Receipt as ReceiptIcon, Moon, Database, WifiOff, LogOut, RefreshCw } from 'lucide-react';
+import { LayoutDashboard, BarChart3, Calendar, Recycle, Gift, ContactRound, Shirt, Receipt as ReceiptIcon, Moon, Menu, X, Database, WifiOff, LogOut, RefreshCw } from 'lucide-react';
 import { supabase } from './lib/core';
 import { api } from './api';
 import { useCollection } from './hooks/useCollection';
@@ -54,6 +54,7 @@ export default function OlympiaNightshiftTracker() {
 // run with an authenticated client (required once RLS is enabled).
 function MainApp({ session }) {
   const [tab, setTab] = useState('dashboard');
+  const [menuOpen, setMenuOpen] = useState(false);
   const [outreach, setOutreach, loadingOutreach, reloadOutreach] = useCollection(api.outreach.load);
   const [salvage, setSalvage, loadingSalvage, reloadSalvage] = useCollection(api.salvage.load);
   const [closet, setCloset, loadingCloset, reloadCloset] = useCollection(api.closet.load);
@@ -77,6 +78,18 @@ function MainApp({ session }) {
       setRefreshing(false);
     }
   }
+
+  // Lock page scroll and close the mobile drawer on Escape while it's open.
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? 'hidden' : '';
+    if (!menuOpen) return () => { document.body.style.overflow = ''; };
+    const onKey = e => { if (e.key === 'Escape') setMenuOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     if (loadingDonations || donations.length === 0) return;
@@ -150,14 +163,62 @@ function MainApp({ session }) {
         </div>
       </aside>
 
+      {/* Mobile slide-out drawer — full sidebar navigation on phones */}
+      {menuOpen && (
+        <div className="md:hidden fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setMenuOpen(false)} />
+          <div className="drawer-panel absolute left-0 top-0 h-full w-72 bg-slate-900 text-white flex flex-col shadow-xl">
+            <div className="p-4 border-b border-slate-700 flex items-center justify-between gap-2">
+              <button onClick={() => { setMenuOpen(false); refreshAll(); }} title="Tap to refresh data" className="text-left group min-w-0">
+                <h1 className="text-lg font-bold text-amber-400 flex items-center gap-2">
+                  <Moon size={18} className={`shrink-0 ${refreshing ? 'animate-spin' : 'group-hover:rotate-12'} transition-transform`} />
+                  Nightshift
+                </h1>
+              </button>
+              <button onClick={() => setMenuOpen(false)} title="Close menu" className="p-1 rounded-lg hover:bg-white/10 shrink-0">
+                <X size={20} />
+              </button>
+            </div>
+            <nav className="flex-1 p-3 flex flex-col gap-1 overflow-y-auto">
+              {tabs.map(t => {
+                const Icon = t.icon;
+                return (
+                  <button key={t.id} onClick={() => { setTab(t.id); setMenuOpen(false); }} className={`sidebar-link w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-sm font-medium transition-colors ${tab === t.id ? 'active bg-white/10 text-white border-l-[3px] border-amber-400' : 'text-slate-300 hover:bg-white/10 hover:text-white border-l-[3px] border-transparent'}`}>
+                    <Icon size={16} className="w-5 shrink-0" /> {t.label}
+                  </button>
+                );
+              })}
+            </nav>
+            <div className="p-3 border-t border-slate-700">
+              <UndoRedoControls />
+            </div>
+            <div className="p-4 text-xs text-slate-400 border-t border-slate-700 flex items-center justify-between gap-1.5">
+              <span className="flex items-center gap-1.5">
+                {supabase ? (<><Database size={12} /> Synced to Supabase</>) : (<><WifiOff size={12} /> Not configured</>)}
+              </span>
+              {session && (
+                <button onClick={() => supabase.auth.signOut()} title="Sign out" className="flex items-center gap-1 hover:text-white">
+                  <LogOut size={12} /> Sign out
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main column */}
       <div className="flex-1 min-w-0 flex flex-col">
         {/* Mobile header + nav */}
         <div className="md:hidden bg-slate-900 text-white p-3 flex items-center justify-between gap-2">
-          <button onClick={refreshAll} title="Tap to refresh data" className="flex items-center gap-2 min-w-0">
-            <Moon size={18} className={`text-amber-400 shrink-0 ${refreshing ? 'animate-spin' : ''}`} />
-            <h1 className="font-bold truncate">Nightshift</h1>
-          </button>
+          <div className="flex items-center gap-2 min-w-0">
+            <button onClick={() => setMenuOpen(true)} title="Open menu" className="shrink-0 p-1 -ml-1 rounded-lg hover:bg-white/10">
+              <Menu size={20} className="text-amber-400" />
+            </button>
+            <button onClick={refreshAll} title="Tap to refresh data" className="flex items-center gap-2 min-w-0">
+              <Moon size={18} className={`text-amber-400 shrink-0 ${refreshing ? 'animate-spin' : ''}`} />
+              <h1 className="font-bold truncate">Nightshift</h1>
+            </button>
+          </div>
           <div className="flex gap-1 shrink-0">
             <UndoRedoControls compact />
           </div>
@@ -183,7 +244,7 @@ function MainApp({ session }) {
           {tab === 'salvage' && <SalvageTab entries={salvage} setEntries={setSalvage} itemTypes={salvageItemTypes} setItemTypes={setSalvageItemTypes} donors={donors} setDonors={setDonors} />}
           {tab === 'donations' && <DonationTab entries={donations} setEntries={setDonations} itemTypes={donationItemTypes} setItemTypes={setDonationItemTypes} donors={donors} setDonors={setDonors} />}
           {tab === 'contacts' && <ContactsTab donors={donors} setDonors={setDonors} />}
-          {tab === 'closet' && <ClosetTab entries={closet} setCloset={setCloset} />}
+          {tab === 'closet' && <ClosetTab entries={closet} setEntries={setCloset} />}
           {tab === 'receipts' && <ReceiptsTab receipts={receipts} setReceipts={setReceipts} />}
         </main>
       </div>

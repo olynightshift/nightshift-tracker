@@ -8,6 +8,9 @@
 .sidebar-link:hover { background-color: rgba(255, 255, 255, 0.1); }
 .sidebar-link.active { background-color: rgba(255, 255, 255, 0.1); }
 
+.drawer-panel { animation: slideInLeft 0.22s ease-out; }
+@keyframes slideInLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+
 .stat-card { transition: transform 0.2s; }
 .stat-card:hover { transform: translateY(-2px); }
 

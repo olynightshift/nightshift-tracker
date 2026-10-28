@@ -28,7 +28,7 @@ export const PIE_COLORS = ['#8b5cf6','#14b8a6','#f59e0b','#3b82f6','#22c55e','#e
 // Food splits three ways: crew meals vs. outreach coffee supplies vs. other food.
 // Tax is NOT a spending category — it lives in receipts.tax and is displayed
 // separately from category totals everywhere.
-export const RECEIPT_CATEGORIES = ['Food — Employee/Volunteer','Food — Coffee Supplies','Food — Other','Cleaning Supplies','Laundry','Fuel/Transportation','Vehicle Maintenance','Office Supplies','Blankets/Clothing Purchase','Utilities','Other'];
+export const RECEIPT_CATEGORIES = ['Food — Employee/Volunteer','Food — Coffee Supplies','Food — Other','Cleaning Supplies','Laundry','Fuel/Transportation','Vehicle Maintenance','Office Supplies','Blankets/Clothing Purchase','Tools and Hardware','Utilities','Other'];
 export const TAX_NAME_REGEX = /(^|\s)(sales|state|wa|city|county|excise)?\s*tax(es)?(\s|$)/i;
 
 export function downloadCSV(filename, rows) {
@@ -129,7 +129,7 @@ export function sumQuantitiesByMonth(entries, year, itemTypes) {
   });
   return data;
 }
-export function sumQuantitiesByYear(entries, itemTypes) {
+export function sumQuantitiesByYear(entries, year, itemTypes) {
   const map = {};
   entries.forEach(e => {
     const y = parseISO(e.date).getFullYear();

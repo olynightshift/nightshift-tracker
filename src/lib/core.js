@@ -129,7 +129,7 @@ export function sumQuantitiesByMonth(entries, year, itemTypes) {
   });
   return data;
 }
-export function sumQuantitiesByYear(entries, year, itemTypes) {
+export function sumQuantitiesByYear(entries, itemTypes) {
   const map = {};
   entries.forEach(e => {
     const y = parseISO(e.date).getFullYear();

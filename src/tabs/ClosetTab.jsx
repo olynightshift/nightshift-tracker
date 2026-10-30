@@ -57,9 +57,57 @@ export function ClosetTab({ entries, setEntries }) {
   const weekStart = startOfWeek(weekAnchor);
   const weekEntries = entries.filter(e => { const d = parseISO(e.date); return d >= weekStart && d <= addDays(weekStart, 6); });
   const monthYear = monthAnchor.getFullYear(); const monthIdx = monthAnchor.getMonth();
+  const monthEntries = entries.filter(e => { const d = parseISO(e.date); return d.getFullYear() === monthYear && d.getMonth() === monthIdx; });
+  const yearEntries = entries.filter(e => parseISO(e.date).getFullYear() === yearSelected);
   const yearData = MONTHS.map((m, i) => ({ month: m, people: entries.filter(e => { const d = parseISO(e.date); return d.getFullYear() === yearSelected && d.getMonth() === i; }).reduce((s, e) => s + e.people, 0) }));
   const yearMap = {}; entries.forEach(e => { const y = parseISO(e.date).getFullYear(); yearMap[y] = (yearMap[y] || 0) + e.people; });
   const allYearData = Object.entries(yearMap).map(([year, people]) => ({ year, people })).sort((a, b) => a.year - b.year);
+
+  const renderRow = e => {
+    const isEditing = editingId === e.id;
+    return (
+      <tr key={e.id} className="border-b">
+        <td className="py-1.5">{isEditing ? <input type="date" value={editBuffer.date} onChange={ev => setEditBuffer({ ...editBuffer, date: ev.target.value })} className="border rounded px-1 py-0.5 text-sm" /> : e.date}</td>
+        <td>{isEditing ? <input type="number" value={editBuffer.people} onChange={ev => setEditBuffer({ ...editBuffer, people: ev.target.value })} className="border rounded px-1 py-0.5 w-20 text-sm" /> : e.people}</td>
+        <td className="flex gap-2">
+          {isEditing ? (
+            <>
+              <button onClick={async () => {
+                const ok = await runAction({
+                  label: 'Update closet entry',
+                  doFn: async () => {
+                    await api.closet.update(editBuffer);
+                    setEntries(prev => prev.map(x => x.id === e.id ? { ...editBuffer, id: e.id } : x));
+                  },
+                  undoFn: async () => {
+                    await api.closet.update(e);
+                    setEntries(prev => prev.map(x => x.id === e.id ? e : x));
+                  },
+                });
+                if (ok) { setEditingId(null); toast('Entry updated.', 'success'); }
+              }}><Save size={14} className="text-green-500" /></button>
+              <button onClick={() => setEditingId(null)}><X size={14} className="text-slate-400" /></button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => { setEditingId(e.id); setEditBuffer({ ...e }); }}><Edit2 size={14} className="text-sky-400" /></button>
+              <button onClick={() => deleteEntry(e)}><Trash2 size={14} className="text-red-500" /></button>
+            </>
+          )}
+        </td>
+      </tr>
+    );
+  };
+
+  const entriesTable = (rows, emptyMsg, sortDesc = false) => (
+    <table className="w-full text-sm mt-4">
+      <thead><tr className="text-left border-b"><th className="py-1">Date</th><th>People</th><th></th></tr></thead>
+      <tbody>
+        {rows.slice().sort((a, b) => sortDesc ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)).map(renderRow)}
+        {rows.length === 0 && <tr><td colSpan="3" className="text-center text-slate-500 py-3">{emptyMsg}</td></tr>}
+      </tbody>
+    </table>
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -86,47 +134,7 @@ export function ClosetTab({ entries, setEntries }) {
             <span className="font-medium text-sm">{toISO(weekStart)} — {toISO(addDays(weekStart, 6))}</span>
             <button onClick={() => setWeekAnchor(addDays(weekStart, 7))}><ChevronRight /></button>
           </div>
-          <table className="w-full text-sm">
-            <thead><tr className="text-left border-b"><th className="py-1">Date</th><th>People</th><th></th></tr></thead>
-            <tbody>
-              {weekEntries.sort((a, b) => a.date.localeCompare(b.date)).map(e => {
-                const isEditing = editingId === e.id;
-                return (
-                  <tr key={e.id} className="border-b">
-                    <td className="py-1.5">{isEditing ? <input type="date" value={editBuffer.date} onChange={ev => setEditBuffer({ ...editBuffer, date: ev.target.value })} className="border rounded px-1 py-0.5 text-sm" /> : e.date}</td>
-                    <td>{isEditing ? <input type="number" value={editBuffer.people} onChange={ev => setEditBuffer({ ...editBuffer, people: ev.target.value })} className="border rounded px-1 py-0.5 w-20 text-sm" /> : e.people}</td>
-                    <td className="flex gap-2">
-                      {isEditing ? (
-                        <>
-                          <button onClick={async () => {
-                            const ok = await runAction({
-                              label: 'Update closet entry',
-                              doFn: async () => {
-                                await api.closet.update(editBuffer);
-                                setEntries(prev => prev.map(x => x.id === e.id ? { ...editBuffer, id: e.id } : x));
-                              },
-                              undoFn: async () => {
-                                await api.closet.update(e);
-                                setEntries(prev => prev.map(x => x.id === e.id ? e : x));
-                              },
-                            });
-                            if (ok) { setEditingId(null); toast('Entry updated.', 'success'); }
-                          }}><Save size={14} className="text-green-500" /></button>
-                          <button onClick={() => setEditingId(null)}><X size={14} className="text-slate-400" /></button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => { setEditingId(e.id); setEditBuffer({ ...e }); }}><Edit2 size={14} className="text-sky-400" /></button>
-                          <button onClick={() => deleteEntry(e)}><Trash2 size={14} className="text-red-500" /></button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-              {weekEntries.length === 0 && <tr><td colSpan="3" className="text-center text-slate-500 py-3">No entries this week</td></tr>}
-            </tbody>
-          </table>
+          {entriesTable(weekEntries, 'No entries this week')}
         </div>
       )}
       {view === 'month' && (
@@ -141,6 +149,7 @@ export function ClosetTab({ entries, setEntries }) {
               <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="day" /><YAxis allowDecimals={false} /><Tooltip />
               <Bar dataKey="people" fill="#ec4899" /></BarChart>
           </ResponsiveContainer>
+          {entriesTable(monthEntries, 'No entries this month')}
         </div>
       )}
       {view === 'year' && (
@@ -154,6 +163,7 @@ export function ClosetTab({ entries, setEntries }) {
             <BarChart data={yearData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis allowDecimals={false} /><Tooltip />
               <Bar dataKey="people" fill="#ec4899" /></BarChart>
           </ResponsiveContainer>
+          {entriesTable(yearEntries, 'No entries this year')}
         </div>
       )}
       {view === 'all' && (
@@ -162,6 +172,7 @@ export function ClosetTab({ entries, setEntries }) {
             <BarChart data={allYearData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="year" /><YAxis allowDecimals={false} /><Tooltip />
               <Bar dataKey="people" fill="#ec4899" /></BarChart>
           </ResponsiveContainer>
+          {entriesTable(entries, 'No closet entries yet', true)}
         </div>
       )}
     </div>

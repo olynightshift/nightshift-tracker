@@ -4,7 +4,7 @@ import { supabase } from './lib/core';
 import { api } from './api';
 import { useCollection } from './hooks/useCollection';
 import { ToastProvider } from './components/ui';
-import { AuthGate } from './components/AuthGate';
+import { AuthGate, SHARED_EMAIL, readDeviceTrust, clearDeviceTrust } from './components/AuthGate';
 import { UndoProvider, UndoRedoControls } from './components/UndoProvider';
 import { ConfirmProvider } from './components/ConfirmProvider';
 import { Dashboard } from './tabs/Dashboard';
@@ -26,12 +26,26 @@ export default function OlympiaNightshiftTracker() {
 
   useEffect(() => {
     if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      let s = data.session;
+      // Server session lost (expired/revoked) but this device is trusted:
+      // silently re-establish the session instead of showing the code pad.
+      if (!s) {
+        const trusted = readDeviceTrust();
+        if (trusted) {
+          const { data: d2, error } = await supabase.auth.signInWithPassword({ email: SHARED_EMAIL, password: trusted });
+          if (error) clearDeviceTrust(); // code changed — ask the human
+          s = (d2 && d2.session) || null;
+        }
+      }
+      if (cancelled) return;
+      setSession(s);
       setAuthChecked(true);
-    });
+    })();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
-    return () => subscription.unsubscribe();
+    return () => { cancelled = true; subscription.unsubscribe(); };
   }, []);
 
   return (
@@ -156,7 +170,7 @@ function MainApp({ session }) {
             {supabase ? (<><Database size={12} /> Synced to Supabase</>) : (<><WifiOff size={12} /> Not configured</>)}
           </span>
           {session && (
-            <button onClick={() => supabase.auth.signOut()} title="Sign out" className="flex items-center gap-1 hover:text-white">
+            <button onClick={() => { clearDeviceTrust(); supabase.auth.signOut(); }} title="Sign out" className="flex items-center gap-1 hover:text-white">
               <LogOut size={12} /> Sign out
             </button>
           )}
@@ -197,7 +211,7 @@ function MainApp({ session }) {
                 {supabase ? (<><Database size={12} /> Synced to Supabase</>) : (<><WifiOff size={12} /> Not configured</>)}
               </span>
               {session && (
-                <button onClick={() => supabase.auth.signOut()} title="Sign out" className="flex items-center gap-1 hover:text-white">
+                <button onClick={() => { clearDeviceTrust(); supabase.auth.signOut(); }} title="Sign out" className="flex items-center gap-1 hover:text-white">
                   <LogOut size={12} /> Sign out
                 </button>
               )}

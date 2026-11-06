@@ -5,8 +5,28 @@ import { supabase } from '../lib/core';
 // One shared volunteer account lives behind the passcode. The code IS the
 // account password, so change it in Supabase (Authentication → Users) and
 // everyone uses the same 6 digits. Signed-in sessions persist on the device.
-const SHARED_EMAIL = 'crew@olynightshift.org';
+export const SHARED_EMAIL = 'crew@olynightshift.org';
 const LENGTH = 6;
+
+// Device trust: once a device enters the correct code, remember it (lightly
+// obfuscated) so a lost/expired server session can be silently re-established
+// without prompting again. Signing out clears the trust. This is the app's
+// "remember me" — the code protects the data, and a trusted device skips it.
+const TRUST_KEY = 'ns_device_trust';
+export function saveDeviceTrust(code) {
+  try { localStorage.setItem(TRUST_KEY, btoa('ns1:' + code)); } catch { /* private mode etc. */ }
+}
+export function readDeviceTrust() {
+  try {
+    const v = localStorage.getItem(TRUST_KEY);
+    if (!v) return null;
+    const d = atob(v);
+    return d.startsWith('ns1:') ? d.slice(4) : null;
+  } catch { return null; }
+}
+export function clearDeviceTrust() {
+  try { localStorage.removeItem(TRUST_KEY); } catch { /* ignore */ }
+}
 
 // ============================================================
 // AuthGate — 6-digit passcode sign-in
@@ -21,6 +41,7 @@ export function AuthGate() {
     setBusy(true); setError(false);
     const { error: authError } = await supabase.auth.signInWithPassword({ email: SHARED_EMAIL, password: code });
     setBusy(false);
+    if (!authError) saveDeviceTrust(code);
     if (authError) {
       setError(true);
       setDigits(Array(LENGTH).fill(''));

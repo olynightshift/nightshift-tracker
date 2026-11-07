@@ -86,12 +86,16 @@ export function ReceiptsTab({ receipts, setReceipts }) {
 
   async function deleteReceipt(r) {
     if (!(await confirm(`Delete receipt from ${r.store} on ${r.date}?`))) return;
+    // Photos aren't loaded in the browse list anymore — fetch this one's image
+    // first so an undo can restore the receipt exactly as it was.
+    const image = r.image || await api.receipts.loadImage(r.id);
+    const full = { ...r, image };
     const ok = await runAction({
       label: 'Delete receipt',
-      doFn: async () => { await api.receipts.remove(r); setReceipts(prev => prev.filter(x => x.id !== r.id)); },
+      doFn: async () => { await api.receipts.remove(full); setReceipts(prev => prev.filter(x => x.id !== r.id)); },
       undoFn: async () => {
-        const id = await api.receipts.insert(r);
-        setReceipts(prev => [...prev, { ...r, id }]);
+        const id = await api.receipts.insert(full);
+        setReceipts(prev => [...prev, { ...full, id }]);
       },
     });
     if (ok) toast('Receipt deleted.', 'success');
@@ -125,6 +129,19 @@ export function ReceiptsTab({ receipts, setReceipts }) {
   const sortedReceipts = useMemo(() => filteredReceipts.slice().sort((a, b) => b.date.localeCompare(a.date)), [filteredReceipts]);
   useEffect(() => { setFocusIdx(0); }, [sortedReceipts.length, itemQ, storeQ, category, dateFrom, dateTo, minCost, maxCost]);
   const focusedReceipt = sortedReceipts[focusIdx];
+
+  // Receipt photos are loaded on demand (see api.receipts.load) — cache them
+  // here keyed by receipt id, and fetch the focused receipt's photo as the
+  // user pages through receipts.
+  const [images, setImages] = useState({});
+  useEffect(() => {
+    if (view === 'browse' && focusedReceipt && !images[focusedReceipt.id]) {
+      api.receipts.loadImage(focusedReceipt.id).then(url => {
+        if (url) setImages(m => ({ ...m, [focusedReceipt.id]: url }));
+      }).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, focusedReceipt]);
 
   // Reports data
   const totalSpent = filteredReceipts.reduce((s, r) => s + receiptTotal(r), 0);
@@ -222,7 +239,7 @@ export function ReceiptsTab({ receipts, setReceipts }) {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={() => { setEditingReceipt(focusedReceipt); setShowModal(true); }} title="Edit"><Edit2 size={16} className="text-sky-400" /></button>
+                          <button onClick={() => { setEditingReceipt({ ...focusedReceipt, image: images[focusedReceipt.id] ?? focusedReceipt.image }); setShowModal(true); }} title="Edit"><Edit2 size={16} className="text-sky-400" /></button>
                           <button onClick={() => deleteReceipt(focusedReceipt)} title="Delete"><Trash2 size={16} className="text-red-500" /></button>
                         </div>
                       </div>
@@ -239,9 +256,9 @@ export function ReceiptsTab({ receipts, setReceipts }) {
                         </tbody>
                       </table>
                     </div>
-                    {focusedReceipt.image && (
+                    {images[focusedReceipt.id] && (
                       <div className="md:w-56 shrink-0">
-                        <img src={focusedReceipt.image} alt="receipt" className="w-full rounded border" />
+                        <img src={images[focusedReceipt.id]} alt="receipt" className="w-full rounded border" />
                       </div>
                     )}
                   </div>
@@ -260,7 +277,7 @@ export function ReceiptsTab({ receipts, setReceipts }) {
                         <td className="text-xs text-slate-400">{[...new Set(r.items.map(it => it.category))].join(', ')}</td>
                         <td className="text-right">${receiptTotal(r).toFixed(2)}</td>
                         <td className="flex gap-2 p-2">
-                          <button onClick={e => { e.stopPropagation(); setEditingReceipt(r); setShowModal(true); }}><Edit2 size={14} className="text-sky-400" /></button>
+                          <button onClick={e => { e.stopPropagation(); setEditingReceipt({ ...r, image: images[r.id] ?? r.image }); setShowModal(true); }}><Edit2 size={14} className="text-sky-400" /></button>
                           <button onClick={e => { e.stopPropagation(); deleteReceipt(r); }}><Trash2 size={14} className="text-red-500" /></button>
                         </td>
                       </tr>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Receipt as ReceiptIcon, Camera, ScanLine, X, Trash2, Plus, Save } from 'lucide-react';
 import { api } from '../api';
 import { RECEIPT_CATEGORIES, todayISO, isTaxLineItem } from '../lib/core';
@@ -24,6 +24,16 @@ export function ReceiptFormModal({ receipt, setReceipts, onClose, onSaved }) {
   const [showOcrText, setShowOcrText] = useState(false);
   const toast = useToast();
   const { runAction } = useUndo();
+
+  // Existing receipts: the browse list no longer loads photos, so fetch the
+  // stored one lazily. api.receipts.update() preserves the stored photo when
+  // no image is in hand, so a save before this fetch finishes is still safe.
+  useEffect(() => {
+    if (receipt?.id && !receipt.image) {
+      api.receipts.loadImage(receipt.id).then(url => { if (url) setImage(url); }).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function updateItem(i, field, value) { setItems(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: value } : it)); }
   function addItemRow() { setItems(prev => [...prev, { name: '', cost: '', category: 'Other' }]); }

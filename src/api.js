@@ -101,8 +101,12 @@ export const api = {
   },
   receipts: {
     async load() {
+      // NOTE: image_url is intentionally excluded here — receipts carry camera
+      // photos as multi-MB data URLs, and pulling them all in one query can
+      // exceed mobile fetch limits and blank the whole tab. Load images
+      // on demand via loadImage() instead.
       const [receiptsRes, itemsRes] = await Promise.all([
-        supabase.from(TABLES.receipts).select('id, date, store, image_url, tax'),
+        supabase.from(TABLES.receipts).select('id, date, store, tax'),
         supabase.from(TABLES.receiptItems).select('id, receipt_id, item_name, category, cost'),
       ]);
       if (receiptsRes.error) throw receiptsRes.error;
@@ -113,7 +117,12 @@ export const api = {
         itemsByReceipt[it.receipt_id].push({ id: it.id, name: it.item_name, category: it.category, cost: Number(it.cost) || 0 });
       });
       Object.values(itemsByReceipt).forEach(list => list.sort((a, b) => a.id - b.id));
-      return (receiptsRes.data || []).map(r => ({ id: r.id, date: r.date, store: r.store, image: r.image_url || null, tax: Number(r.tax) || 0, items: itemsByReceipt[r.id] || [] }));
+      return (receiptsRes.data || []).map(r => ({ id: r.id, date: r.date, store: r.store, image: null, tax: Number(r.tax) || 0, items: itemsByReceipt[r.id] || [] }));
+    },
+    async loadImage(id) {
+      const { data, error } = await supabase.from(TABLES.receipts).select('image_url').eq('id', id).single();
+      if (error) return null;
+      return data?.image_url || null;
     },
     async insert(row) {
       const { data: rec, error } = await supabase.from(TABLES.receipts).insert({ date: row.date, store: row.store, image_url: row.image || null, tax: Number(row.tax) || 0 }).select('id').single();
@@ -126,7 +135,12 @@ export const api = {
       return rec.id;
     },
     async update(row) {
-      const { error } = await supabase.from(TABLES.receipts).update({ date: row.date, store: row.store, image_url: row.image || null, tax: Number(row.tax) || 0 }).eq('id', row.id);
+      // Only write image_url when we actually have an image in hand — the
+      // browse list no longer loads photos, so a null image here must mean
+      // "leave the stored photo alone", not "delete it".
+      const payload = { date: row.date, store: row.store, tax: Number(row.tax) || 0 };
+      if (row.image) payload.image_url = row.image;
+      const { error } = await supabase.from(TABLES.receipts).update(payload).eq('id', row.id);
       if (error) throw error;
       await supabase.from(TABLES.receiptItems).delete().eq('receipt_id', row.id);
       const items = (row.items || []).map(it => ({ receipt_id: row.id, item_name: it.name, category: it.category || 'Other', cost: Number(it.cost) || 0 }));
